@@ -1,0 +1,375 @@
+--- Page 1 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 1 / 9
+ UNIVERSITÉ ABDERRAHMANE MIRA — BÉJAÏA
+ 
+ Faculté des Sciences Exactes
+ Département Informatique — Licence Informatique, Spécialité Systèmes Informatiques
+ 
+ CAHIER DES CHARGES
+ Projet de Fin de Cycle — Licence 3
+ Année universitaire 2025/2026
+ 
+Application Web de Gestion et Réservation de Logements
+ Gestion de location d'appartements et d'hôtels
+ 
+Réalisé par
+Manseur Chamseddine Mancer Salim Manadi Nassim Moussaoui Yacine
+Merchiche Louenas
+Filière
+Licence Informatique — Systèmes Informatiques
+Encadrant
+M. Abdelhak Goutal
+Établissement
+Université Abderrahmane Mira — Béjaïa
+Année universitaire
+2025 / 2026
+Date de rédaction
+28 / 02 / 2026
+Version
+1.0
+
+--- Page 2 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 2 / 9
+1. Introduction
+1.1 Contexte et problématique
+La gestion des locations de logements (appartements et hôtels) repose encore, dans de nombreux cas, sur des
+méthodes manuelles : appels téléphoniques, registres papier ou fichiers non partagés. Ces méthodes engendrent des
+erreurs de disponibilité, une communication difficile entre propriétaires et locataires, et une absence totale de visibilité
+sur les réservations en cours.
+Ce projet vise à répondre à cette problématique en développant une application web permettant de centraliser la
+gestion des logements, des réservations et de la communication entre les différents acteurs.
+1.2 Objectifs du projet
+ Permettre aux propriétaires de publier et gérer leurs annonces de logements
+ Permettre aux voyageurs de rechercher, filtrer et réserver des logements en ligne
+ Faciliter la communication entre voyageurs et propriétaires via une messagerie intégrée
+ Offrir un espace d'administration pour superviser la plateforme
+ Produire une application web fonctionnelle, sécurisée et maintenable
+2. Présentation du Projet
+2.1 Titre du projet
+Application Web de Gestion et Réservation de Logements
+2.2 Description générale
+Il s'agit d'une application web full-stack permettant à des propriétaires de publier des annonces de logements
+(appartements, chambres d'hôtel) et à des voyageurs de les consulter, de les réserver et de laisser des avis. Une
+interface d'administration permet de superviser l'ensemble de la plateforme.
+2.3 Étude de l'existant et apport du projet
+Des solutions similaires existent (plateformes internationales de location en ligne), mais elles ne sont pas adaptées au
+contexte local : langue, types de logements, absence de frais de commission, et accessibilité pour les petits
+propriétaires. Notre application comble ce manque en proposant une solution simple, locale et entièrement maîtrisée.
+3. Acteurs du Système
+Acteur
+ Rôle
+ Accès
+ 
+Visiteur
+Toute personne accédant au site sans
+compte
+Consultation des annonces et recherche
+uniquement
+Voyageur
+Utilisateur inscrit souhaitant réserver
+Réservation, messagerie, avis, profil
+Propriétaire
+Utilisateur proposant un ou plusieurs
+logements
+Gestion des annonces, disponibilités,
+messagerie
+Administrateur
+Responsable de la plateforme
+Accès total : utilisateurs, annonces,
+réservations, statistiques
+
+--- Page 3 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 3 / 9
+4. Exigences Fonctionnelles
+Hôtes : H ; Voyageur : V ; Admin : A
+1. Gestion des utilisateurs
+1.1. Inscription / Connexion
+ H , V : S'inscrire avec email, téléphone ou réseaux sociaux (Google, Facebook, ).
+ H , V : Récupération de mot de passe (reset).
+1.2. Profils utilisateurs
+ H , V : Visualiser et modifier les informations personnelles.
+ H , V : Photo de profil.
+ H , V : Moyens de contact valides.
+2. Gestion des annonces
+2.1. Création d'annonce (Propriétaires / Hôtes)
+H :
+ Formulaire complet d'ajout de logement :
+– Titre, description
+– Type de bien (appartement, maison, chambre,…)
+– Nombre de chambres, lits, salle de bain...
+– Capacité d'accueil
+– Équipements disponibles
+– Photos du logement
+– Adresse géolocalisée
+– Validation du logement
+2.2. Gestion des annonces
+H :
+ Modifier ou supprimer une annonce.
+ Activer / désactiver la publication.
+ Gérer prix, règles et disponibilités.
+3. Recherche et navigation
+3.1. Recherche
+V :
+ Barre de recherche (lieu, date d'arrivée, date de départ, nombre de voyageurs).
+ Filtres :
+– Prix
+– Type de logement
+– Nombre de chambres/lits
+– Équipements (Wi-Fi, cuisine, pets allowed, piscine,…)
+– Options (annulation gratuite, bien noté, hôte vérifié)
+3.2. Résultats
+ Liste de résultats avec aperçu (prix, photo, note).
+ Carte interactive affichant les locations.
+ Pagination / infinite scroll.
+4. Calendrier & Disponibilité
+
+--- Page 4 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 4 / 9
+ H : Sélection de dates disponibles.
+ H : Bloquer des dates non disponibles.
+ H , V : Voir disponibilité en vue calendrier.
+ H : Empêcher / Générer des notifications pour les conflits de dates.
+5. Réservation
+5.1. Réserver un logement
+V :
+ Choisir des dates.
+ Calcul automatique du prix total (nuit × prix + frais).
+ Demande de réservation instantanée ou sur approbation de l'hôte.
+5.2. Annulations
+ Annulation selon politiques (souples, modérées, strictes)
+6. Notifications et communication
+6.1. Messagerie interne
+H , V :
+ Chat entre voyageurs et hôtes.
+ Envoi de messages textes.
+ Envoi de photos .
+6.2. Notifications
+H , V :
+ Émail de confirmation de réservation.
+ Rappels avant séjour.
+ Tableau de bord récapitulatif
+ Notifications d'annulation / refus / acceptation.
+7. Système de notation
+ V : Noter le logement après le séjour.
+ V : Noter l'hôte.
+ H , V : Afficher moyenne des notes.
+ H , V : Commentaires publics.
+8. Gestion des comptes et sécurité
+A :
+ Vérification d'identité en plusieurs étapes.
+ Contrôles anti-fraude.
+ Gestion de blocage ou suspension de comptes.
+9. Administration du site
+A :
+ Gestion des utilisateurs.
+ Modération des annonces et des commentaires.
+ Rapports statistiques (revenus, réservations, taux d'annulation).
+ Gestion des litiges.
+
+--- Page 5 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 5 / 9
+10. Autres fonctionnalités avancées facultatives
+10.1. Wishlist / Favoris
+ Permettre à l'utilisateur de sauvegarder des logements favoris.
+10.2. Programmes spéciaux
+ H : Offres saisonnières
+ H : Réductions pour longs séjours
+10.3. Localisation & carte
+ V : Carte interactive des logements.
+ V : Filtrer par zones sur la carte.
+10.4. Multi-devises
+ H , V : Conversion automatique des devises
+10.5. Service de paiement
+ H , V : Paiement en ligne sécurisé lors de la réservation.
+ H , V : Prise en charge de plusieurs moyens de paiement (carte bancaire, virement, portefeuilles électroniques).
+ H : Versement automatique des revenus après confirmation du séjour.
+ V : Remboursement automatique en cas d'annulation selon la politique appliquée.
+ A : Tableau de bord financier (transactions, reversements, litiges de paiement).
+
+--- Page 6 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 6 / 9
+5. Exigences Non Fonctionnelles
+Critère
+ Description
+ 
+Performance
+Chargement des pages en moins de 5 secondes sur connexion standard
+Sécurité
+Données sensibles hachés , protection contre les injections SQL et les attaques XSS,
+sessions sécurisées
+Ergonomie
+Interface intuitive, responsive (mobile, tablette, desktop), messages d'erreur clairs
+Compatibilité
+Fonctionnel sur Chrome, Firefox et Edge dans leurs versions récentes
+Maintenabilité
+Code structuré en MVC, commenté et versionné sur GitHub
+6. Architecture et Choix Techniques
+6.1 Architecture
+L'application suit le patron d'architecture MVC (Modèle - Vue - Contrôleur) :
+ Modèle : gestion des données et interactions avec la base de données
+ Vue : interfaces utilisateur rendues via EJS (templates HTML côté serveur)
+ Contrôleur : logique métier et traitement des requêtes HTTP
+6.2 Technologies utilisées
+ Composant
+ Technologie
+ 
+Backend / API
+Next.js API Routes / Server Actions
+Frontend / Framework
+Next.js 15+ (App Router)
+Styling
+Bootstrap 5 + Tailwind CSS + shadcn/ui ou Radix UI
+Base de données
+POSTRESQL
+État global / Data fetching
+TanStack Query (React Query) + Zustand (si besoin)
+Formulaires / Validation
+React Hook Form + Zod
+Authentification
+JWT + NextAuth.js v5 / Auth.js ou Lucia + Better Auth
+Upload fichiers / Photos
+UploadThing ou Supabase Storage / Cloudinary
+ORM / Query
+Prisma (ou Drizzle ORM)
+Recherche avancée
+Elasticsearch (ou OpenSearch)
+Géo / Carte
+Mapbox GL JS ou Leaflet + OpenStreetMap
+Cache / Perf
+Redis (pour sessions, rate-limit, cache listings populaires)
+Temps réel
+Socket.io ou Pusher
+Versioning
+Git + GitHub
+
+--- Page 7 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 7 / 9
+6. Répartition des Tâches
+Pers
+onne
+Rôle principal
+(mis à jour)
+ Focus global et tâches principales
+ Collaboration
+principale
+A
+Lead / Frontend
+principal
+ Pages principales, composants UI, navigation Polish
+visuel, responsive Tests UI et démo finale
+Collab avec D sur UI,
+avec tous sur Git
+B
+Backend / BDD +
+Elasticsearch
+ Schéma Prisma (users, listings, bookings, reviews)
+Setup DB (Supabase / Neon)  Migrations Prisma Setup,
+indexation et sync Elasticsearch (Prisma → ES) Logique
+BDD avancée (prix total, chevauchement dates) Server
+Actions CRUD critiques
+Collab étroite avec C
+sur Elasticsearch
+C
+Recherche /
+Elasticsearch +
+API core
+ Recherche Postgres puis Elasticsearch Requêtes ES
+(full-text, filtres, facettes, geo, autocomplete) Server
+Actions / API core (CRUD listings, bookings, users)
+Vérification auth dans les actions Intégration front/back +
+fix bugs API
+Collab avec B sur ES,
+A/D sur UI recherche
+D
+UI / Carte /
+Design
+ Composants Tailwind + shadcn/ui Pages listings,
+search UI, formulaires Intégration Mapbox / Leaflet
+Responsive, loading states, erreurs visuelles
+Collab avec A sur
+frontend, C sur
+affichage recherche
+E
+Auth / Tests /
+Déploiement
+ Auth complète (Auth.js)  Gestion des rôles (host /
+guest) Tests manuels globaux (tous les flux)
+Déploiement Vercel + BDD online README, doc,
+préparation soutenance
+Collab avec tous (tests
+finaux + auth API)
+
+--- Page 8 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 8 / 9
+7. Analyse des Risques
+ Risque
+ Impact
+ Mesure préventive
+ 
+Mauvaise coordination entre les 5
+membres
+Fort
+Réunions hebdomadaires + branches Git séparées par
+fonctionnalité
+Sous-estimation du temps de
+développement
+Fort
+Commencer par les fonctionnalités obligatoires, laisser les
+facultatives pour la fin
+Perte du code source
+Très fort
+Commits quotidiens sur GitHub, sans exception
+Conflit entre les modules lors de
+l'intégration
+Moyen
+Définir dès le début les interfaces entre modules, tester au
+fur et à mesure
+Difficulté technique bloquante
+Moyen
+Consulter l'encadrant rapidement, ne pas rester bloqué plus
+d'une journée
+8. Livrables du Projet
+Conformément aux exigences communes définies par l'encadrant, le projet devra inclure :
+ Livrable
+ Description
+ 
+Cahier des charges
+Le présent document
+Diagrammes UML
+Use Case, Diagramme de Classes, Diagrammes de Séquence (inclus dans le
+rapport)
+Diagramme de Gantt
+Planning détaillé du projet (inclus dans le rapport)
+Analyse des risques
+Tableau des risques avec mesures préventives (inclus dans le rapport)
+Base de données relationnelle
+Script SQL complet de création et de population de la base de données
+Code source (Architecture MVC)
+Application structurée en MVC, commentée, versionnée sur GitHub
+Prototype fonctionnel
+Application démontrable en local lors de la soutenance
+Rapport final
+Document complet couvrant toutes les étapes du projet
+Présentation orale
+Slides clairs et synthétiques pour la soutenance
+
+--- Page 9 ---
+Cahier des Charges — Application Web de Gestion et Réservation de Logements
+Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 9 / 9
+9. Conclusion
+Ce cahier des charges définit le cadre complet de notre projet de fin de cycle. Il constitue notre engagement envers
+notre encadrant M. Abdelhak Goutal et notre jury quant aux fonctionnalités à réaliser, aux technologies à utiliser et à
+l'organisation du travail au sein du groupe.
+Ce projet nous permettra de mobiliser les compétences acquises au cours de notre formation : développement web,
+conception de bases de données, architecture logicielle MVC et gestion de projet en équipe. Nous nous engageons à
+livrer une application fonctionnelle, bien documentée et présentable lors de la soutenance.
+Validé par l'encadrant : M. Abdelhak Goutal
+Signature : ___________________________ Date : _______________
