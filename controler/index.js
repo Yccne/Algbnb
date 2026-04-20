@@ -13,13 +13,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const authRoutes = require('./routes/auth');
-const logementRoutes = require('./routes/logements');
+const authRoutes        = require('./routes/auth');
+const logementRoutes    = require('./routes/logements');
 const reservationRoutes = require('./routes/reservations');
+const dashboardRoutes   = require('./routes/dashboard');   
+const messagesRoutes    = require('./routes/messages');     
 
-app.use('/api/auth', authRoutes);
-app.use('/api/logements', logementRoutes);
+app.use('/api/auth',         authRoutes);
+app.use('/api/logements',    logementRoutes);
 app.use('/api/reservations', reservationRoutes);
+app.use('/api/dashboard',    dashboardRoutes);             
+app.use('/api/messages',     messagesRoutes);              
 
 app.get('/', (req, res) => {
   res.json({ message: 'API Algbnb fonctionne ✅' });
