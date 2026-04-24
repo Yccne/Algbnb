@@ -1,322 +1,262 @@
-import React, { useState, useEffect } from 'react';
-import { Navbar } from '../components/Navbar';
-import { LogementCard } from '../components/LogementCard';
-import { BottomNavBar } from '../components/BottomNavBar';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { MapPinned, SlidersHorizontal } from 'lucide-react';
 import { logementController } from '@algbnb/core';
-import { Link } from 'react-router-dom';
-import { Map, List, SlidersHorizontal, X } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
+import { Navbar } from '../components/Navbar';
+import { BottomNavBar } from '../components/BottomNavBar';
+import { LogementCard } from '../components/LogementCard';
+import { ListingsMap } from '../components/ListingsMap';
+import { LocationSearchInput } from '../components/LocationSearchInput';
 
-// Fix for default markers in Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+const availableEquipements = ['Wi-Fi', 'Cuisine equipee', 'Animaux acceptes', 'Piscine', 'Parking', 'Climatisation'];
 
 export const PageResultats = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [logements, setLogements] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState(null);
-  const [filteredLogements, setFilteredLogements] = useState([]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const sentinelRef = useRef(null);
+
+  const filters = useMemo(
+    () => ({
+      search: searchParams.get('search') || '',
+      type: searchParams.get('type') || '',
+      prixMin: searchParams.get('prixMin') || '',
+      prixMax: searchParams.get('prixMax') || '',
+      chambres: searchParams.get('chambres') || '',
+      lits: searchParams.get('lits') || '',
+      voyageurs: searchParams.get('voyageurs') || '',
+      dateArrivee: searchParams.get('dateArrivee') || '',
+      dateDepart: searchParams.get('dateDepart') || '',
+      sort: searchParams.get('sort') || '',
+      annulationGratuite: searchParams.get('annulationGratuite') === 'true',
+      bienNote: searchParams.get('bienNote') === 'true',
+      hoteVerifie: searchParams.get('hoteVerifie') === 'true',
+      equipements: searchParams.get('equipements') ? searchParams.get('equipements').split(',').filter(Boolean) : [],
+    }),
+    [searchParams]
+  );
+
+  const filtersKey = useMemo(() => searchParams.toString(), [searchParams]);
+
+  const fetchResults = async (offset = 0, append = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setError('');
+    }
+
+    try {
+      const data = await logementController.searchLogements({
+        ...filters,
+        limit: 12,
+        offset,
+      });
+
+      setLogements((current) => (append ? [...current, ...data.items] : data.items));
+      setTotal(data.total || 0);
+      setHasMore(Boolean(data.has_more));
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      const data = await logementController.getLogements();
-      setLogements(data);
-      setFilteredLogements(data);
-      setLoading(false);
-    };
-    fetch();
-  }, []);
+    fetchResults(0, false);
+  }, [filtersKey]);
 
-  const [filters, setFilters] = useState({
-    prixMin: '',
-    prixMax: '',
-    type: '',
-    chambres: '',
-    lits: '',
-    equipements: [],
-    options: []
-  });
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading || loadingMore) {
+      return undefined;
+    }
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !loadingMore) {
+          fetchResults(logements.length, true);
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, logements.length, filtersKey]);
+
+  const updateFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      next.delete(key);
+    } else {
+      next.set(key, Array.isArray(value) ? value.join(',') : String(value));
+    }
+    setSearchParams(next);
+  };
+
+  const toggleBooleanFilter = (key) => {
+    updateFilter(key, !filters[key]);
   };
 
   const toggleEquipement = (equipement) => {
-    setFilters(prev => ({
-      ...prev,
-      equipements: prev.equipements.includes(equipement)
-        ? prev.equipements.filter(e => e !== equipement)
-        : [...prev.equipements, equipement]
-    }));
-  };
-
-  const toggleOption = (option) => {
-    setFilters(prev => ({
-      ...prev,
-      options: prev.options.includes(option)
-        ? prev.options.filter(o => o !== option)
-        : [...prev.options, option]
-    }));
-  };
-
-  const applyFilters = () => {
-    let filtered = [...logements];
-    
-    if (filters.prixMin) filtered = filtered.filter(l => l.prix >= parseInt(filters.prixMin));
-    if (filters.prixMax) filtered = filtered.filter(l => l.prix <= parseInt(filters.prixMax));
-    if (filters.type) filtered = filtered.filter(l => l.type.toLowerCase().includes(filters.type.toLowerCase()));
-    if (filters.chambres) filtered = filtered.filter(l => l.chambres >= parseInt(filters.chambres));
-    if (filters.lits) filtered = filtered.filter(l => l.lits >= parseInt(filters.lits));
-    if (filters.equipements.length > 0) {
-      filtered = filtered.filter(l => filters.equipements.every(eq => l.equipements.includes(eq)));
-    }
-    if (filters.options.includes('bienNote')) filtered = filtered.filter(l => l.note >= 4.5);
-    if (filters.options.includes('annulationGratuite')) filtered = filtered.filter(l => l.equipements.includes('Annulation gratuite'));
-    
-    setFilteredLogements(filtered);
-    setIsFilterModalOpen(false);
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      prixMin: '',
-      prixMax: '',
-      type: '',
-      chambres: '',
-      lits: '',
-      equipements: [],
-      options: []
-    });
-    setFilteredLogements(logements);
-    setIsFilterModalOpen(false);
+    const next = filters.equipements.includes(equipement)
+      ? filters.equipements.filter((item) => item !== equipement)
+      : [...filters.equipements, equipement];
+    updateFilter('equipements', next);
   };
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
-      
       <div className="page-container" style={{ flex: 1, marginTop: 'var(--spacing-16)' }}>
-        
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--spacing-12)', flexWrap: 'wrap', gap: 'var(--spacing-6)' }}>
+        <header style={{ display: 'grid', gap: 'var(--spacing-8)', marginBottom: 'var(--spacing-12)' }}>
           <div>
-            <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-4)', lineHeight: 1.1 }}>
-              {filteredLogements.length} logements trouvés<br/>en Algérie
+            <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-3)', lineHeight: 1.1 }}>
+              {loading ? 'Recherche en cours...' : `${total} logement${total > 1 ? 's' : ''} trouve${total > 1 ? 's' : ''}`}
             </h1>
             <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>
-              Plus de {logements.length} logements pour votre séjour idéal en Algérie.
+              Affine tes resultats par lieu, dates, budget, equipements et qualite d hote.
             </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ display: 'flex', gap: 'var(--spacing-4)', marginTop: 'var(--spacing-4)', justifyContent: 'flex-end' }}>
-               <button 
-                 className="btn-outline"
-                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                 onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
-               >
-                 {viewMode === 'list' ? <Map size={18} /> : <List size={18} />}
-                 {viewMode === 'list' ? 'Vue Carte' : 'Vue Liste'}
-               </button>
-               <button 
-                 className="btn-primary"
-                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                 onClick={() => setIsFilterModalOpen(true)}
-               >
-                 <SlidersHorizontal size={18} /> Filtres
-               </button>
-            </div>
-          </div>
-        </header>
 
-        {loading ? (
-          <div className="spinner"></div>
-        ) : viewMode === 'list' ? (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-            gap: 'var(--spacing-8)',
-            marginBottom: 'var(--spacing-16)'
-          }}>
-            {filteredLogements.map(logement => (
-              <LogementCard key={logement.id} logement={logement} />
-            ))}
-          </div>
-        ) : (
-          <div style={{ width: '100%', height: '600px', borderRadius: 'var(--radius-lg)', overflow: 'hidden', position: 'relative' }}>
-            <MapContainer 
-              center={[36.7538, 3.0588]} 
-              zoom={6} 
-              style={{ height: '100%', width: '100%' }}
-              scrollWheelZoom={false}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          <div style={{ backgroundColor: 'var(--surface-lowest)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-ambient)', padding: 'var(--spacing-5)', display: 'grid', gap: 'var(--spacing-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <MapPinned size={18} />
+              <strong>Recherche et filtres</strong>
+            </div>
+
+            <div className="results-filter-grid">
+              <LocationSearchInput
+                value={filters.search}
+                onChange={(value) => updateFilter('search', value)}
+                onSelect={(suggestion) => updateFilter('search', suggestion.display_name || '')}
+                placeholder="Lieu"
               />
-              {filteredLogements.map(logement => (
-                <Marker key={logement.id} position={[logement.lat, logement.lng]}>
-                  <Popup>
-                    <div style={{ minWidth: '200px' }}>
-                      <img 
-                        src={logement.photos[0]} 
-                        alt={logement.titre}
-                        style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', marginBottom: '8px' }}
-                      />
-                      <h4 style={{ fontSize: 'var(--body-md)', fontWeight: 'bold', marginBottom: '4px' }}>{logement.titre}</h4>
-                      <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginBottom: '8px' }}>{logement.ville}</p>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold' }}>{logement.prix} DZD/nuit</span>
-                        <Link to={`/logement/${logement.id}`} style={{ color: 'var(--primary)', fontSize: 'var(--body-sm)', fontWeight: '600' }}>
-                          Voir détails
-                        </Link>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-            </MapContainer>
-          </div>
-        )}
-      </div>
-
-      <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginTop: 'auto' }}>
-        <Link to="#" className="footer-link">Confidentialité</Link>
-        <Link to="#" className="footer-link">Conditions</Link>
-        <Link to="#" className="footer-link">Plan du site</Link>
-        <Link to="#" className="footer-link" style={{marginRight: 0}}>Assistance</Link>
-      </footer>
-      <BottomNavBar />
-
-      {/* Filter Modal */}
-      {isFilterModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: 'var(--surface-lowest)', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-lg)', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--surface-high)', paddingBottom: 'var(--spacing-4)', marginBottom: 'var(--spacing-6)' }}>
-              <h2 style={{ fontSize: 'var(--headline-md)' }}>Filtres</h2>
-              <button 
-                onClick={() => setIsFilterModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div style={{ marginBottom: 'var(--spacing-8)' }}>
-              <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Prix par nuit</h3>
-              <div style={{ display: 'flex', gap: 'var(--spacing-4)', alignItems: 'center' }}>
-                <input 
-                  type="number" 
-                  placeholder="Min" 
-                  value={filters.prixMin} 
-                  onChange={e => handleFilterChange('prixMin', e.target.value)}
-                  style={{ padding: 'var(--spacing-3)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', flex: 1 }}
-                />
-                <span>-</span>
-                <input 
-                  type="number" 
-                  placeholder="Max" 
-                  value={filters.prixMax} 
-                  onChange={e => handleFilterChange('prixMax', e.target.value)}
-                  style={{ padding: 'var(--spacing-3)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', flex: 1 }}
-                />
-                <span>DZD</span>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 'var(--spacing-8)' }}>
-              <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Type de logement</h3>
-              <select 
-                value={filters.type} 
-                onChange={e => handleFilterChange('type', e.target.value)}
-                style={{ padding: 'var(--spacing-4)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', width: '100%', backgroundColor: 'transparent' }}
-              >
-                <option value="">Tous les types</option>
+              <input type="date" value={filters.dateArrivee} onChange={(event) => updateFilter('dateArrivee', event.target.value)} className="input-field" />
+              <input type="date" value={filters.dateDepart} onChange={(event) => updateFilter('dateDepart', event.target.value)} className="input-field" />
+              <input type="number" min="1" value={filters.voyageurs} onChange={(event) => updateFilter('voyageurs', event.target.value)} placeholder="Voyageurs" className="input-field" />
+              <select value={filters.type} onChange={(event) => updateFilter('type', event.target.value)} className="input-field">
+                <option value="">Tous types</option>
                 <option value="appartement">Appartement</option>
-                <option value="maison">Maison / Villa</option>
+                <option value="maison">Maison</option>
                 <option value="chambre">Chambre</option>
+                <option value="villa">Villa</option>
                 <option value="chalet">Chalet</option>
-                <option value="maison d'hôtes">Maison d'hôtes</option>
               </select>
+              <select value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value)} className="input-field">
+                <option value="">Pertinence / recents</option>
+                <option value="price_asc">Prix croissant</option>
+                <option value="price_desc">Prix decroissant</option>
+                <option value="rating_desc">Mieux notes</option>
+                <option value="recent">Plus recents</option>
+              </select>
+              <input type="number" value={filters.prixMin} onChange={(event) => updateFilter('prixMin', event.target.value)} placeholder="Prix min" className="input-field" />
+              <input type="number" value={filters.prixMax} onChange={(event) => updateFilter('prixMax', event.target.value)} placeholder="Prix max" className="input-field" />
+              <input type="number" value={filters.chambres} onChange={(event) => updateFilter('chambres', event.target.value)} placeholder="Chambres min" className="input-field" />
+              <input type="number" value={filters.lits} onChange={(event) => updateFilter('lits', event.target.value)} placeholder="Lits min" className="input-field" />
             </div>
 
-            <div style={{ marginBottom: 'var(--spacing-8)' }}>
-              <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Capacité</h3>
-              <div style={{ display: 'flex', gap: 'var(--spacing-4)' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>Chambres min</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    value={filters.chambres} 
-                    onChange={e => handleFilterChange('chambres', e.target.value)}
-                    style={{ padding: 'var(--spacing-3)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', width: '100%' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>Lits min</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    value={filters.lits} 
-                    onChange={e => handleFilterChange('lits', e.target.value)}
-                    style={{ padding: 'var(--spacing-3)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', width: '100%' }}
-                  />
-                </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--spacing-3)' }}>
+                <SlidersHorizontal size={18} />
+                <strong>Equipements</strong>
               </div>
-            </div>
-
-            <div style={{ marginBottom: 'var(--spacing-8)' }}>
-              <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Équipements</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
-                {['Wi-Fi', 'Cuisine équipée', 'Piscine', 'Parking', 'Climatisation', 'Vue mer'].map(eq => (
-                  <label key={eq} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={filters.equipements.includes(eq)}
-                      onChange={() => toggleEquipement(eq)}
-                    />
-                    {eq}
-                  </label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
+                {availableEquipements.map((equipement) => (
+                  <button
+                    key={equipement}
+                    type="button"
+                    className={filters.equipements.includes(equipement) ? 'chip chip-active' : 'chip chip-default'}
+                    onClick={() => toggleEquipement(equipement)}
+                  >
+                    {equipement}
+                  </button>
                 ))}
               </div>
             </div>
 
-            <div style={{ marginBottom: 'var(--spacing-8)' }}>
-              <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Options spéciales</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-3)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filters.options.includes('bienNote')}
-                    onChange={() => toggleOption('bienNote')}
-                  />
-                  Bien noté (4.5+ étoiles)
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={filters.options.includes('annulationGratuite')}
-                    onChange={() => toggleOption('annulationGratuite')}
-                  />
-                  Annulation gratuite
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 'var(--spacing-6)', borderTop: '1px solid var(--surface-high)' }}>
-               <button className="btn-outline" onClick={clearFilters}>Tout effacer</button>
-               <button className="btn-primary" onClick={applyFilters}>Afficher les résultats ({filteredLogements.length})</button>
+            <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
+              <button type="button" className={filters.annulationGratuite ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('annulationGratuite')}>
+                Annulation gratuite
+              </button>
+              <button type="button" className={filters.bienNote ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('bienNote')}>
+                Bien note
+              </button>
+              <button type="button" className={filters.hoteVerifie ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('hoteVerifie')}>
+                Hote verifie
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setSearchParams(new URLSearchParams())}
+                style={{ marginLeft: 'auto' }}
+              >
+                Reinitialiser
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        </header>
+
+        {import.meta.env.VITE_MAPTILER_KEY ? (
+          <div style={{ marginBottom: 'var(--spacing-8)' }}>
+            <ListingsMap listings={logements} />
+          </div>
+        ) : null}
+
+        {error ? (
+          <div style={{ marginBottom: 'var(--spacing-6)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(180, 35, 24, 0.08)', color: 'var(--error)', borderRadius: 'var(--radius-DEFAULT)' }}>
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="spinner"></div>
+        ) : logements.length === 0 ? (
+          <div style={{ padding: 'var(--spacing-10)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-lg)' }}>
+            <h3 style={{ marginBottom: 'var(--spacing-2)' }}>Aucun resultat</h3>
+            <p style={{ color: 'var(--on-surface-variant)' }}>Ajuste les filtres ou cree de nouvelles annonces cote hote.</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-5)' }}>
+              {logements.length} affiche(s) sur {total}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--spacing-8)', marginBottom: 'var(--spacing-10)' }}>
+              {logements.map((logement) => (
+                <LogementCard key={logement.id} logement={logement} />
+              ))}
+            </div>
+
+            {loadingMore ? <div className="spinner"></div> : null}
+            {hasMore ? <div ref={sentinelRef} style={{ height: '12px' }} /> : null}
+            {!hasMore ? (
+              <div style={{ textAlign: 'center', color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-16)' }}>
+                Fin des resultats.
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginTop: 'auto' }}>
+        <Link to="#" className="footer-link">
+          Confidentialite
+        </Link>
+        <Link to="#" className="footer-link">
+          Conditions
+        </Link>
+        <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
+          Assistance
+        </Link>
+      </footer>
+      <BottomNavBar />
     </div>
   );
 };

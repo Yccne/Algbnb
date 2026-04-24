@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authController } from '@algbnb/core';
 
 export const AuthContext = createContext();
@@ -6,20 +6,52 @@ export const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(authController.getCurrentUser());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const currentUser = authController.getCurrentUser();
-    setUser(currentUser);
-    setLoading(false);
+    let mounted = true;
+
+    const bootstrap = async () => {
+      try {
+        const currentUser = authController.getCurrentUser();
+        if (!currentUser) {
+          if (mounted) setUser(null);
+          return;
+        }
+        const refreshed = await authController.fetchCurrentUser();
+        if (mounted) setUser(refreshed);
+      } catch (error) {
+        await authController.logout();
+        if (mounted) setUser(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    bootstrap();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     setLoading(true);
     try {
-      const u = await authController.login(email, password);
-      setUser(u);
+      const nextUser = await authController.login(identifier, password);
+      setUser(nextUser);
+      return nextUser;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    setLoading(true);
+    try {
+      const nextUser = await authController.register(userData);
+      setUser(nextUser);
+      return nextUser;
     } finally {
       setLoading(false);
     }
@@ -27,14 +59,25 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     setLoading(true);
-    await authController.logout();
-    setUser(null);
-    setLoading(false);
+    try {
+      await authController.logout();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const refreshUser = async () => {
+    const nextUser = await authController.fetchCurrentUser();
+    setUser(nextUser);
+    return nextUser;
+  };
+
+  const updateProfile = async (payload) => {
+    const nextUser = await authController.updateProfile(payload);
+    setUser(nextUser);
+    return nextUser;
+  };
+
+  return <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, updateProfile }}>{children}</AuthContext.Provider>;
 };

@@ -12,6 +12,9 @@ import { PageCreerAnnonce } from './view/pages/PageCreerAnnonce';
 import { PageResultats } from './view/pages/PageResultats';
 import { PageFavoris } from './view/pages/PageFavoris';
 import { PageMessages } from './view/pages/PageMessages';
+import { PageNotifications } from './view/pages/PageNotifications';
+import { PageResetPassword } from './view/pages/PageResetPassword';
+import { PageAdmin } from './view/pages/PageAdmin';
 
 function App() {
   return (
@@ -25,9 +28,12 @@ function App() {
           <Route path="/favoris" element={<PageFavoris />} />
           <Route path="/reservations" element={<PageMesReservations />} />
           <Route path="/messages" element={<PageMessages />} />
+          <Route path="/notifications" element={<PageNotifications />} />
           <Route path="/profil" element={<PageProfil />} />
           <Route path="/connexion" element={<PageAuth />} />
+          <Route path="/reset-password" element={<PageResetPassword />} />
           <Route path="/dashboard-hote" element={<PageDashboardHote />} />
+          <Route path="/admin" element={<PageAdmin />} />
           <Route path="/creer-annonce" element={<PageCreerAnnonce />} />
         </Routes>
       </Router>

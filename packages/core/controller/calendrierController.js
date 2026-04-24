@@ -1,22 +1,9 @@
-const mockDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+import { get, put } from '../apiClient.js';
 
-// Table of unavailable dates per logementId
-// Format: { logementId: ['2026-04-10', '2026-04-11'] }
-let unavailableDates = {
-  1: ['2026-04-10', '2026-04-11', '2026-04-12', '2026-04-13', '2026-04-14'],
-  2: ['2026-05-01', '2026-05-02']
-};
+export const getDisponibilites = async (logementId) => get(`/logements/${logementId}/disponibilites`);
 
-export const getDisponibilites = async (logementId) => {
-  await mockDelay(500);
-  return unavailableDates[logementId] || [];
-};
+export const setDisponibilites = async (logementId, disponibilites) =>
+  put(`/annonces/${logementId}/disponibilites`, { disponibilites });
 
-export const bloquerDate = async (logementId, dateString) => {
-  await mockDelay(400);
-  if (!unavailableDates[logementId]) unavailableDates[logementId] = [];
-  if (!unavailableDates[logementId].includes(dateString)) {
-    unavailableDates[logementId].push(dateString);
-  }
-  return true;
-};
+export const bloquerDate = async (logementId, dateString) =>
+  setDisponibilites(logementId, [{ date_debut: dateString, date_fin: dateString, est_bloque: true, source_blocage: 'manuel' }]);

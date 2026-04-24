@@ -1,20 +1,14 @@
-import { Avis } from '../model/Avis.js';
-
-const mockDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-let avisDB = [
-  new Avis({ id: 1, logementId: 1, auteurId: 2, noteLogement: 5, noteHote: 5, commentaire: "Super séjour, villa magnifique !" }),
-  new Avis({ id: 2, logementId: 2, auteurId: 3, noteLogement: 4, noteHote: 5, commentaire: "Très bien placé, propriétaire sympa." })
-];
+import { get, patch, post } from '../apiClient.js';
+import { mapReview } from './_shared.js';
 
 export const getAvisByLogement = async (logementId) => {
-  await mockDelay(600);
-  return avisDB.filter(a => a.logementId == logementId);
+  const data = await get(`/avis/logement/${logementId}`);
+  return data.map(mapReview);
 };
 
 export const laisserAvis = async (avisData) => {
-  await mockDelay(800);
-  const nouvelAvis = new Avis({ id: Date.now(), ...avisData });
-  avisDB.push(nouvelAvis);
-  return nouvelAvis;
+  const data = await post('/avis', avisData);
+  return mapReview(data);
 };
+
+export const setAvisVisible = async (id, est_visible) => patch(`/avis/${id}/visibility`, { est_visible });

@@ -1,127 +1,121 @@
 const express = require('express');
+const db = require('../db');
+const { verifierToken, estHote } = require('../middlewares/ann');
+
 const router = express.Router();
-const pool = require('../db');
 
+const fetchHostDashboard = async (hostId) => {
+  const [statsResult, logementsResult, reservationsResult, revenusResult, notificationsResult] = await Promise.all([
+    db.query(
+      `
+        SELECT
+          COUNT(DISTINCT l.id) FILTER (WHERE l.est_actif = TRUE AND l.est_supprime = FALSE) AS nb_annonces_actives,
+          COUNT(DISTINCT r.id) AS nb_reservations_total,
+          COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'confirmee') AS nb_reservations_confirmees,
+          COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'en_attente') AS nb_reservations_en_attente,
+          COUNT(DISTINCT r.id) FILTER (WHERE r.statut IN ('annulee_hote', 'annulee_voyageur')) AS nb_annulations,
+          COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut IN ('confirmee', 'terminee')), 0) AS revenu_total,
+          COALESCE(ROUND(AVG(a.note_hote)::numeric, 2), 0) AS note_moyenne_hote
+        FROM logement l
+        LEFT JOIN reservation r ON r.id_logement = l.id
+        LEFT JOIN avis a ON a.id_hote = l.id_hote AND a.est_visible = TRUE
+        WHERE l.id_hote = $1
+          AND l.est_supprime = FALSE
+      `,
+      [hostId]
+    ),
+    db.query(
+      `
+        SELECT
+          l.*,
+          COALESCE((
+            SELECT ARRAY_REMOVE(ARRAY_AGG(lp.url_photo ORDER BY lp.ordre_affichage), NULL)
+            FROM logement_photo lp
+            WHERE lp.id_logement = l.id
+          ), '{}') AS photos,
+          COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'confirmee') AS nb_reservations,
+          COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut IN ('confirmee', 'terminee')), 0) AS revenu,
+          COALESCE(ROUND(AVG(a.note_logement)::numeric, 2), 0) AS note_moyenne
+        FROM logement l
+        LEFT JOIN reservation r ON r.id_logement = l.id
+        LEFT JOIN avis a ON a.id_logement = l.id AND a.est_visible = TRUE
+        WHERE l.id_hote = $1
+          AND l.est_supprime = FALSE
+        GROUP BY l.id
+        ORDER BY l.date_creation DESC
+      `,
+      [hostId]
+    ),
+    db.query(
+      `
+        SELECT
+          r.*,
+          l.titre AS logement_titre,
+          v.nom AS voyageur_nom,
+          v.prenom AS voyageur_prenom,
+          v.photo_profil AS voyageur_photo
+        FROM reservation r
+        JOIN logement l ON l.id = r.id_logement
+        JOIN utilisateur v ON v.id = r.id_voyageur
+        WHERE l.id_hote = $1
+        ORDER BY r.date_reservation DESC
+        LIMIT 10
+      `,
+      [hostId]
+    ),
+    db.query(
+      `
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', r.date_reservation), 'YYYY-MM') AS mois,
+          COALESCE(SUM(r.montant_total), 0) AS revenu
+        FROM reservation r
+        JOIN logement l ON l.id = r.id_logement
+        WHERE l.id_hote = $1
+          AND r.statut IN ('confirmee', 'terminee')
+          AND r.date_reservation >= NOW() - INTERVAL '6 months'
+        GROUP BY mois
+        ORDER BY mois ASC
+      `,
+      [hostId]
+    ),
+    db.query(
+      `
+        SELECT *
+        FROM notification
+        WHERE id_utilisateur = $1
+        ORDER BY date_envoi DESC
+        LIMIT 10
+      `,
+      [hostId]
+    ),
+  ]);
 
-router.get('/hote/:id', async (req, res) => {
-  const id_hote = req.params.id;
+  return {
+    stats: statsResult.rows[0] || {},
+    logements: logementsResult.rows,
+    reservations: reservationsResult.rows,
+    revenus_mois: revenusResult.rows,
+    notifications: notificationsResult.rows,
+  };
+};
+
+router.get('/host/me', verifierToken, estHote, async (req, res) => {
   try {
-    // --- 1. Statistiques globales ---
-    const statsResult = await pool.query(
-      `SELECT
-         COUNT(DISTINCT r.id)                                          AS nb_reservations_total,
-         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'confirmee')   AS nb_reservations_confirmees,
-         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'en_attente')  AS nb_reservations_en_attente,
-         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'annulee')     AS nb_annulations,
-         COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut = 'confirmee'), 0) AS revenu_total,
-         COUNT(DISTINCT l.id)                                          AS nb_logements_actifs,
-         ROUND(
-           CASE WHEN COUNT(DISTINCT r.id) FILTER (WHERE r.statut != 'annulee') > 0
-                THEN COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'annulee') * 100.0
-                     / COUNT(DISTINCT r.id)
-                ELSE 0 END, 2
-         )                                                             AS taux_annulation,
-         COALESCE(AVG(a.note_logement), 0)                            AS note_moyenne
-       FROM logement l
-       LEFT JOIN reservation r   ON r.id_logement = l.id
-       LEFT JOIN avis       a   ON a.id_logement  = l.id
-       WHERE l.id_hote = $1 AND l.est_actif = true`,
-      [id_hote]
-    );
-
-    // --- 2. Liste des logements de l'hôte ---
-    const logementsResult = await pool.query(
-      `SELECT
-         l.id, l.titre, l.adresse, l.type_logement, l.prix_par_nuit, l.est_actif,
-         ARRAY_AGG(DISTINCT p.url_photo) AS photos,
-         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'confirmee') AS nb_reservations,
-         COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut = 'confirmee'), 0) AS revenu,
-         COALESCE(AVG(a.note_logement), 0) AS note_moyenne
-       FROM logement l
-       LEFT JOIN logement_photo p ON p.id_logement = l.id
-       LEFT JOIN reservation r    ON r.id_logement = l.id
-       LEFT JOIN avis a           ON a.id_logement  = l.id
-       WHERE l.id_hote = $1
-       GROUP BY l.id
-       ORDER BY l.date_creation DESC`,
-      [id_hote]
-    );
-
-    // --- 3. Réservations récentes (10 dernières) ---
-    const reservationsResult = await pool.query(
-      `SELECT
-         r.id, r.statut, r.date_arrivee, r.date_depart,
-         r.nb_voyageurs, r.montant_total, r.date_reservation,
-         l.titre AS logement_titre,
-         u.nom AS voyageur_nom, u.prenom AS voyageur_prenom,
-         u.photo_profil AS voyageur_photo
-       FROM reservation r
-       JOIN logement    l ON l.id = r.id_logement
-       JOIN utilisateur u ON u.id = r.id_voyageur
-       WHERE l.id_hote = $1
-       ORDER BY r.date_reservation DESC
-       LIMIT 10`,
-      [id_hote]
-    );
-
-    // --- 4. Revenus des 6 derniers mois (graphe) ---
-    const revenusResult = await pool.query(
-      `SELECT
-         TO_CHAR(DATE_TRUNC('month', r.date_reservation), 'YYYY-MM') AS mois,
-         COALESCE(SUM(r.montant_total), 0)                           AS revenu
-       FROM reservation r
-       JOIN logement l ON l.id = r.id_logement
-       WHERE l.id_hote = $1
-         AND r.statut = 'confirmee'
-         AND r.date_reservation >= NOW() - INTERVAL '6 months'
-       GROUP BY mois
-       ORDER BY mois ASC`,
-      [id_hote]
-    );
-
-    res.json({
-      stats:        statsResult.rows[0],
-      logements:    logementsResult.rows,
-      reservations: reservationsResult.rows,
-      revenus_mois: revenusResult.rows,
-    });
-  } catch (err) {
-    console.error('[dashboard] Erreur:', err.message);
-    res.status(500).json({ erreur: err.message });
+    return res.json(await fetchHostDashboard(req.user.id));
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
   }
 });
 
-
-router.patch('/reservations/:id/statut', async (req, res) => {
-  const { statut } = req.body;
-  const statutsValides = ['confirmee', 'annulee', 'terminee', 'en_attente'];
-  if (!statutsValides.includes(statut)) {
-    return res.status(400).json({ erreur: 'Statut invalide' });
+router.get('/hote/:id', verifierToken, async (req, res) => {
+  if (String(req.user.id) !== String(req.params.id) && req.user.role !== 'admin') {
+    return res.status(403).json({ erreur: 'Accès refusé.' });
   }
-  try {
-    const result = await pool.query(
-      `UPDATE reservation SET statut = $1 WHERE id = $2 RETURNING *`,
-      [statut, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ erreur: 'Réservation non trouvée' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ erreur: err.message });
-  }
-});
 
-
-router.patch('/logements/:id/actif', async (req, res) => {
-  const { est_actif } = req.body;
   try {
-    const result = await pool.query(
-      `UPDATE logement SET est_actif = $1 WHERE id = $2 RETURNING *`,
-      [est_actif, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ erreur: 'Logement non trouvé' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ erreur: err.message });
+    return res.json(await fetchHostDashboard(Number(req.params.id)));
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
   }
 });
 

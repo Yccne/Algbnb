@@ -1,0 +1,21 @@
+{
+  "exported_at": "2026-04-24T02:44:20.761Z",
+  "database": "projet",
+  "tables": {
+    "avis": [],
+    "conversation": [],
+    "disponibilite": [],
+    "hote": [],
+    "logement": [],
+    "logement_equipement": [],
+    "logement_photo": [],
+    "message": [],
+    "notification": [],
+    "paiement": [],
+    "rapport": [],
+    "reservation": [],
+    "utilisateur": [],
+    "voyageur": [],
+    "voyageur_favori": []
+  }
+}
