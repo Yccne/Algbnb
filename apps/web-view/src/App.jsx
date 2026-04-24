@@ -1,10 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './view/context/AuthContext';
 import { PageAccueil } from './view/pages/PageAccueil';
 import { PageLogement } from './view/pages/PageLogement';
 import { PageAuth } from './view/pages/PageAuth';
-import { PagePaiement } from './view/pages/PagePaiement';
+import { PageReservationConfirmation } from './view/pages/PagePaiement';
 import { PageMesReservations } from './view/pages/PageMesReservations';
 import { PageProfil } from './view/pages/PageProfil';
 import { PageDashboardHote } from './view/pages/PageDashboardHote';
@@ -24,7 +24,8 @@ function App() {
           <Route path="/" element={<PageAccueil />} />
           <Route path="/resultats" element={<PageResultats />} />
           <Route path="/logement/:id" element={<PageLogement />} />
-          <Route path="/paiement" element={<PagePaiement />} />
+          <Route path="/reservation/confirmation" element={<PageReservationConfirmation />} />
+          <Route path="/paiement" element={<Navigate to="/reservation/confirmation" replace />} />
           <Route path="/favoris" element={<PageFavoris />} />
           <Route path="/reservations" element={<PageMesReservations />} />
           <Route path="/messages" element={<PageMessages />} />

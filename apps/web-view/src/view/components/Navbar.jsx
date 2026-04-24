@@ -85,7 +85,7 @@ export const Navbar = () => {
           letterSpacing: '-0.05em',
         }}
       >
-        projet
+        algbnb
       </Link>
 
       <div style={{ display: 'none', gap: 'var(--spacing-3)', alignItems: 'center' }} className="desktop-controls">

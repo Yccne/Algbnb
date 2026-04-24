@@ -21,6 +21,7 @@ export const PageLogement = () => {
   const [error, setError] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+  const [shareMessage, setShareMessage] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -78,6 +79,8 @@ export const PageLogement = () => {
   const sousTotal = nuits * prixNuit;
   const frais = Math.round(sousTotal * 0.12);
   const total = sousTotal + frais;
+  const requiresApproval = logement?.mode_reservation !== 'instantanee';
+  const reservationActionLabel = requiresApproval ? 'Demander a reserver' : 'Reserver maintenant';
 
   const handleReserve = () => {
     if (!user) {
@@ -89,7 +92,7 @@ export const PageLogement = () => {
       return;
     }
 
-    navigate('/paiement', {
+    navigate('/reservation/confirmation', {
       state: {
         logement,
         dateArrivee: dateArrivee.toISOString().slice(0, 10),
@@ -99,6 +102,8 @@ export const PageLogement = () => {
         sousTotal,
         frais,
         total,
+        modeReservation: logement.mode_reservation,
+        politiqueAnnulation: logement.politique_annulation,
       },
     });
   };
@@ -145,6 +150,39 @@ export const PageLogement = () => {
     }
   };
 
+  const handleShare = async () => {
+    if (!logement) {
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/logement/${logement.id}`;
+    setShareMessage('');
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: logement.titre,
+          text: `Decouvre ${logement.titre} sur algbnb.`,
+          url: shareUrl,
+        });
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareMessage('Lien copie dans le presse-papiers.');
+        return;
+      }
+
+      throw new Error('Partage indisponible sur ce navigateur.');
+    } catch (shareError) {
+      if (shareError?.name === 'AbortError') {
+        return;
+      }
+      setError(shareError.message || 'Impossible de partager ce logement.');
+    }
+  };
+
   if (loading) {
     return (
       <div>
@@ -183,7 +221,7 @@ export const PageLogement = () => {
             >
               <Heart size={18} fill={isFavorite ? '#ef4444' : 'none'} color={isFavorite ? '#ef4444' : 'currentColor'} /> Sauvegarder
             </button>
-            <button style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', fontWeight: '600' }}>
+            <button onClick={handleShare} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', fontWeight: '600' }}>
               <Share2 size={18} /> Partager
             </button>
           </div>
@@ -313,14 +351,23 @@ export const PageLogement = () => {
             </div>
 
             {error ? <div style={{ marginBottom: 'var(--spacing-4)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(180, 35, 24, 0.08)', color: 'var(--error)', borderRadius: 'var(--radius-DEFAULT)' }}>{error}</div> : null}
+            {shareMessage ? (
+              <div style={{ marginBottom: 'var(--spacing-4)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(15, 110, 86, 0.08)', color: 'var(--primary)', borderRadius: 'var(--radius-DEFAULT)' }}>
+                {shareMessage}
+              </div>
+            ) : null}
 
             <button className="btn-primary" style={{ width: '100%', padding: 'var(--spacing-4)', fontSize: '1.05rem', marginBottom: 'var(--spacing-4)' }} onClick={handleReserve}>
-              Reserver
+              {reservationActionLabel}
             </button>
             <button className="btn-outline" style={{ width: '100%', marginBottom: 'var(--spacing-4)' }} onClick={handleContactHost}>
               Contacter l hote
             </button>
-            <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-6)' }}>Le total sera valide cote serveur avant creation.</p>
+            <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-6)' }}>
+              {requiresApproval
+                ? 'La demande sera envoyee a l hote pour validation, sans paiement en ligne.'
+                : 'La reservation sera confirmee directement, sans paiement en ligne.'}
+            </p>
 
             {dateArrivee && dateDepart ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-3)' }}>
@@ -344,7 +391,7 @@ export const PageLogement = () => {
       </div>
 
       <footer style={{ borderTop: '1px solid rgba(190, 201, 195, 0.15)', padding: 'var(--spacing-8) var(--spacing-6)', display: 'flex', justifyContent: 'space-between', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', maxWidth: '1120px', margin: '0 auto' }}>
-        <p>© 2026 projet.</p>
+        <p>© 2026 algbnb.</p>
         <div>
           <Link to="#" className="footer-link">
             Confidentialite

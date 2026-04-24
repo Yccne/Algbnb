@@ -237,13 +237,6 @@ router.post('/', verifierToken, async (req, res) => {
       );
 
       const reservation = reservationResult.rows[0];
-      await client.query(
-        `
-          INSERT INTO paiement (id_reservation, montant, devise, statut, methode_paiement)
-          VALUES ($1, $2, 'DZD', 'paye', 'validation_locale')
-        `,
-        [reservation.id, total]
-      );
 
       if (status === 'confirmee') {
         await client.query(

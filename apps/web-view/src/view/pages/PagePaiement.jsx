@@ -4,7 +4,7 @@ import { ArrowLeft, Shield } from 'lucide-react';
 import { reservationController } from '@algbnb/core';
 import { Navbar } from '../components/Navbar';
 
-export const PagePaiement = () => {
+export const PageReservationConfirmation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -22,10 +22,21 @@ export const PagePaiement = () => {
     );
   }
 
-  const { logement, dateArrivee, dateDepart, voyageurs, nuits, sousTotal, frais, total } =
-    reservationData;
+  const {
+    logement,
+    dateArrivee,
+    dateDepart,
+    voyageurs,
+    nuits,
+    sousTotal,
+    frais,
+    total,
+    modeReservation,
+    politiqueAnnulation,
+  } = reservationData;
+  const requiresApproval = modeReservation !== 'instantanee';
 
-  const handlePayment = async () => {
+  const handleReservation = async () => {
     setLoading(true);
     setError('');
     try {
@@ -80,8 +91,21 @@ export const PagePaiement = () => {
             lineHeight: 1.1,
           }}
         >
-          Confirmer la reservation
+          Verifier et confirmer la reservation
         </h1>
+
+        <div
+          style={{
+            marginBottom: 'var(--spacing-6)',
+            padding: 'var(--spacing-5)',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'rgba(15, 110, 86, 0.08)',
+            color: 'var(--primary)',
+          }}
+        >
+          Aucun paiement en ligne n est demande. Le montant ci-dessous sert de recapitulatif pour
+          la reservation.
+        </div>
 
         <div
           style={{
@@ -94,6 +118,18 @@ export const PagePaiement = () => {
           <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-6)' }}>
             Details du sejour
           </h2>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 'var(--spacing-4)',
+            }}
+          >
+            <span style={{ color: 'var(--on-surface-variant)' }}>Mode de reservation</span>
+            <span style={{ fontWeight: 'bold' }}>
+              {requiresApproval ? 'Demande avec validation de l hote' : 'Reservation instantanee'}
+            </span>
+          </div>
           <div
             style={{
               display: 'flex',
@@ -145,8 +181,18 @@ export const PagePaiement = () => {
               marginBottom: 'var(--spacing-6)',
             }}
           >
-            <span style={{ color: 'var(--on-surface-variant)' }}>Frais de service</span>
+            <span style={{ color: 'var(--on-surface-variant)' }}>Frais de service estimatifs</span>
             <span style={{ fontWeight: 'bold' }}>{frais} DZD</span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 'var(--spacing-6)',
+            }}
+          >
+            <span style={{ color: 'var(--on-surface-variant)' }}>Annulation</span>
+            <span style={{ fontWeight: 'bold' }}>{politiqueAnnulation || 'moderee'}</span>
           </div>
 
           <hr
@@ -185,10 +231,14 @@ export const PagePaiement = () => {
           <button
             className="btn-primary"
             style={{ width: '100%', padding: 'var(--spacing-4)', fontSize: '1.1rem' }}
-            onClick={handlePayment}
+            onClick={handleReservation}
             disabled={loading}
           >
-            {loading ? 'Creation de la reservation...' : 'Confirmer'}
+            {loading
+              ? 'Creation de la reservation...'
+              : requiresApproval
+                ? 'Envoyer la demande'
+                : 'Confirmer la reservation'}
           </button>
 
           <div
@@ -202,7 +252,7 @@ export const PagePaiement = () => {
               fontSize: 'var(--body-sm)',
             }}
           >
-            <Shield size={14} /> Confirmation securisee de la reservation
+            <Shield size={14} /> Confirmation securisee, sans paiement en ligne
           </div>
         </div>
       </div>

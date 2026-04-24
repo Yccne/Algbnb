@@ -7,7 +7,7 @@ const BASE_URL = (process.env.BASE_URL || 'http://127.0.0.1:3001/api').replace(/
 
 const demoUsers = {
   host: {
-    email: 'hote.demo@projet.local',
+    email: 'hote.demo@algbnb.local',
     telephone: '0550000001',
     password: 'Demo123!',
     prenom: 'Nadia',
@@ -16,7 +16,7 @@ const demoUsers = {
     photo_profil: '/uploads/profiles/demo-hote.svg',
   },
   traveler: {
-    email: 'voyageur.demo@projet.local',
+    email: 'voyageur.demo@algbnb.local',
     telephone: '0550000002',
     password: 'Demo123!',
     prenom: 'Yanis',
@@ -25,11 +25,11 @@ const demoUsers = {
     photo_profil: '/uploads/profiles/demo-voyageur.svg',
   },
   admin: {
-    email: 'admin.demo@projet.local',
+    email: 'admin.demo@algbnb.local',
     telephone: '0550000003',
     password: 'Demo123!',
     prenom: 'Admin',
-    nom: 'Projet',
+    nom: 'Algbnb',
     role_type: 'admin',
     photo_profil: '/uploads/profiles/demo-hote.svg',
   },
@@ -37,10 +37,10 @@ const demoUsers = {
 
 const listingsToSeed = [
   {
-    title: 'Appartement vue mer a Bejaia',
+    title: '[DEMO] Appartement vue mer a Bejaia',
     city: 'Bejaia',
     form: {
-      titre: 'Appartement vue mer a Bejaia',
+      titre: '[DEMO] Appartement vue mer a Bejaia',
       description:
         'Appartement lumineux avec balcon, cuisine equipee, wifi rapide et vue degagee sur la mer. Ideal pour une escapade a deux ou en famille.',
       type_logement: 'appartement',
@@ -71,10 +71,10 @@ const listingsToSeed = [
     ],
   },
   {
-    title: 'Loft urbain centre-ville',
+    title: '[DEMO] Loft urbain centre-ville',
     city: 'Alger',
     form: {
-      titre: 'Loft urbain centre-ville',
+      titre: '[DEMO] Loft urbain centre-ville',
       description:
         'Loft spacieux et chaleureux au coeur de la ville avec salon ouvert, coin bureau et acces rapide aux transports.',
       type_logement: 'maison',
@@ -413,7 +413,7 @@ async function ensureAdminUser() {
 }
 
 async function ensureResetFlow() {
-  const email = 'reset.demo@projet.local';
+  const email = 'reset.demo@algbnb.local';
   const originalPassword = 'Reset123!';
   const nextPassword = 'Reset456!';
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   CalendarClock,
+  Eye,
   Edit2,
   Plus,
   Power,
@@ -162,7 +163,7 @@ export const PageDashboardHote = () => {
                 maxWidth: '680px',
               }}
             >
-              Vue recap de tes annonces, demandes, revenus et notifications de reservation.
+              Vue recap de tes annonces, demandes, montants estimes et notifications de reservation.
             </p>
           </div>
 
@@ -245,7 +246,7 @@ export const PageDashboardHote = () => {
                 </div>
                 <div className="card" style={{ padding: 'var(--spacing-6)' }}>
                   <div style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-2)' }}>
-                    Revenus
+                    Montant genere
                   </div>
                   <div style={{ fontSize: 'var(--headline-md)', fontWeight: 800 }}>
                     {dashboard?.stats?.revenu_total || 0} DZD
@@ -506,12 +507,29 @@ export const PageDashboardHote = () => {
                           }}
                         >
                           <span>{annonce.nb_reservations || 0} reservations</span>
-                          <span>{annonce.revenu || 0} DZD encaisses</span>
+                          <span>{annonce.revenu || 0} DZD generes</span>
                           <span>{annonce.note_moyenne || 0}/5 de note</span>
                         </div>
                       </div>
 
                       <div style={{ display: 'flex', gap: 'var(--spacing-2)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => navigate(`/logement/${annonce.id}`)}
+                          title="Voir l annonce"
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '50%',
+                            border: '1px solid var(--outline-variant)',
+                            background: 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Eye size={18} />
+                        </button>
                         <button
                           onClick={() => toggleStatus(annonce)}
                           title="Activer ou desactiver"

@@ -37,7 +37,7 @@ const getTransporter = () => {
 };
 
 const getFromAddress = () =>
-  process.env.SMTP_FROM || process.env.MAIL_FROM || 'projet-local@localhost';
+  process.env.SMTP_FROM || process.env.MAIL_FROM || 'algbnb-local@localhost';
 
 const sendMail = async ({ to, subject, text, html }) => {
   if (!to) {

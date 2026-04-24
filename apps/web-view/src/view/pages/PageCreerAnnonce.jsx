@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { logementController } from '@algbnb/core';
 import { Navbar } from '../components/Navbar';
 import { LocationSearchInput } from '../components/LocationSearchInput';
+import { useAuth } from '../context/AuthContext';
 
 const initialState = {
   titre: '',
@@ -59,6 +60,7 @@ const parsePhotoUrls = (value) =>
 
 export const PageCreerAnnonce = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id');
   const [form, setForm] = useState(initialState);
@@ -191,6 +193,54 @@ export const PageCreerAnnonce = () => {
       setLoading(false);
     }
   };
+
+  const canManageListings = user && (user.role_type === 'hote' || user.role_type === 'admin');
+
+  if (!canManageListings) {
+    return (
+      <div
+        style={{
+          backgroundColor: 'var(--bg-main)',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Navbar />
+        <div
+          className="page-container"
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            style={{
+              maxWidth: '520px',
+              padding: 'var(--spacing-8)',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--surface-lowest)',
+              boxShadow: 'var(--shadow-ambient)',
+            }}
+          >
+            <h1 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-3)' }}>
+              Espace reserve aux hotes
+            </h1>
+            <p style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-6)' }}>
+              Connecte-toi avec un compte hote pour publier et gerer tes annonces.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
+              {!user ? (
+                <button className="btn-primary" onClick={() => navigate('/connexion')}>
+                  Se connecter
+                </button>
+              ) : null}
+              <button className="btn-outline" onClick={() => navigate('/')}>
+                Retour a l accueil
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -527,7 +577,7 @@ export const PageCreerAnnonce = () => {
                         </div>
                         <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
                           {item.source_blocage === 'maintenance' ? 'Maintenance' : 'Date bloquee'}
-                          {item.note_interne ? ` • ${item.note_interne}` : ''}
+                          {item.note_interne ? ` - ${item.note_interne}` : ''}
                         </div>
                       </div>
                       <button
@@ -583,7 +633,7 @@ export const PageCreerAnnonce = () => {
           marginTop: 'auto',
         }}
       >
-        <p style={{ marginBottom: 'var(--spacing-4)' }}>© 2026 projet</p>
+        <p style={{ marginBottom: 'var(--spacing-4)' }}>© 2026 algbnb</p>
         <Link to="#" className="footer-link">
           Confidentialite
         </Link>

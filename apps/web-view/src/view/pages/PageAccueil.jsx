@@ -267,6 +267,11 @@ export const PageAccueil = () => {
             <p style={{ color: 'var(--on-surface-variant)' }}>
               De nouvelles annonces apparaitront ici des qu elles seront publiees.
             </p>
+            <div style={{ marginTop: 'var(--spacing-6)' }}>
+              <Link to="/creer-annonce" className="btn-primary">
+                Publier un logement
+              </Link>
+            </div>
           </div>
         ) : (
           <div
@@ -298,7 +303,7 @@ export const PageAccueil = () => {
             fontSize: 'var(--body-sm)',
           }}
         >
-          <p>© 2026 projet.</p>
+          <p>© 2026 algbnb.</p>
           <div>
             <Link to="#" className="footer-link">
               A propos

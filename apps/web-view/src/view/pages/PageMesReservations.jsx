@@ -526,7 +526,7 @@ export const PageMesReservations = () => {
           fontSize: 'var(--body-sm)',
         }}
       >
-        <p style={{ marginBottom: 'var(--spacing-4)' }}>© 2026 projet</p>
+        <p style={{ marginBottom: 'var(--spacing-4)' }}>© 2026 algbnb</p>
         <Link to="#" className="footer-link">
           Confidentialite
         </Link>

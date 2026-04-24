@@ -58,7 +58,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ message: 'API projet prete.' });
+  res.json({ message: 'API algbnb prete.' });
 });
 
 app.use((req, res) => {
