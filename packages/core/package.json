@@ -1,0 +1,10 @@
+{
+  "name": "@algbnb/core",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "multer": "^2.1.1"
+  }
+}

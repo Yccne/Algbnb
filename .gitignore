@@ -1,0 +1,6 @@
+node_modules
+rout/.env
+apps/web-view/.env
+apps/mobile-view/.env
+*.env
+firebase-adminsdk.json

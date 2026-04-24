@@ -1,0 +1,8 @@
+{
+  "name": "algbnb-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}
