@@ -109,33 +109,56 @@ router.post('/google', async (req, res) => {
   const { idToken, role_type = 'voyageur' } = req.body;
   if (!idToken) return res.status(400).json({ erreur: 'Token Google manquant.' });
 
+  const firebaseApiKey = process.env.FIREBASE_API_KEY;
+  if (!firebaseApiKey) {
+    return res.status(500).json({ erreur: 'FIREBASE_API_KEY manquant dans le .env serveur.' });
+  }
+
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    const { uid, email, name, picture } = decodedToken;
+    // Vérification via l'API REST Firebase (pas besoin de service account)
+    const verifyRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      }
+    );
+
+    const verifyData = await verifyRes.json();
+    if (!verifyRes.ok || !verifyData.users || verifyData.users.length === 0) {
+      return res.status(401).json({ erreur: 'Token Google invalide.' });
+    }
+
+    const firebaseUser = verifyData.users[0];
+    const uid = firebaseUser.localId;
+    const email = firebaseUser.email || null;
+    const name = firebaseUser.displayName || '';
+    const picture = firebaseUser.photoUrl || null;
 
     // Cherche si l'utilisateur existe via provider_id ou email
-    let result = await db.query(
-      'SELECT * FROM utilisateur WHERE provider_id = $1 OR email = $2 LIMIT 1',
-      [uid, email ? email.toLowerCase() : null]
-    );
+    const queryText = email
+      ? 'SELECT * FROM utilisateur WHERE provider_id = $1 OR email = $2 LIMIT 1'
+      : 'SELECT * FROM utilisateur WHERE provider_id = $1 LIMIT 1';
+    const queryParams = email ? [uid, email.toLowerCase()] : [uid];
+    let result = await db.query(queryText, queryParams);
 
     let user;
 
     if (result.rows.length === 0) {
-      // Inscription
-      const [prenom, ...nomParts] = (name || '').split(' ');
-      const nom = nomParts.join(' ');
-      
+      // Inscription automatique
+      const parts = name.split(' ').filter(Boolean);
+      const prenom = parts[0] || 'Utilisateur';
+      const nom = parts.slice(1).join(' ') || prenom;
+
       const insertResult = await db.query(
-        `INSERT INTO utilisateur (
-          prenom, nom, email, photo_profil, role_type, provider_source, provider_id, est_verifie
-        ) VALUES ($1, $2, $3, $4, $5, 'google', $6, true) RETURNING *`,
-        [prenom || 'GoogleUser', nom || '', email ? email.toLowerCase() : null, picture || null, role_type, uid]
+        `INSERT INTO utilisateur (prenom, nom, email, photo_profil, role_type, provider_source, provider_id, est_verifie)
+         VALUES ($1, $2, $3, $4, $5, 'google', $6, true) RETURNING *`,
+        [prenom, nom, email ? email.toLowerCase() : null, picture, role_type, uid]
       );
       user = insertResult.rows[0];
     } else {
       user = result.rows[0];
-      // Met à jour provider_id et source s'il s'était inscrit par email d'abord
       if (!user.provider_id) {
         await db.query(
           'UPDATE utilisateur SET provider_id = $1, provider_source = $2, est_verifie = true WHERE id = $3',
@@ -144,14 +167,13 @@ router.post('/google', async (req, res) => {
       }
     }
 
-    // Met à jour la dernière connexion
     await db.query('UPDATE utilisateur SET derniere_connexion = NOW() WHERE id = $1', [user.id]);
-    
+
     const token = signToken(user);
     return res.json({ token, user: sanitizeUser(user) });
   } catch (error) {
     console.error('Erreur authentification Google:', error);
-    return res.status(401).json({ erreur: 'Token invalide ou expiré.' });
+    return res.status(500).json({ erreur: error.message });
   }
 });
 
