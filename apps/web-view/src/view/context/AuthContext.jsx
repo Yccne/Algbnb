@@ -58,6 +58,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (idToken, role = 'voyageur') => {
+    setLoading(true);
+    try {
+      const nextUser = await authController.loginWithGoogle(idToken, role);
+      setUser(nextUser);
+      return nextUser;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshUser = async () => {
     const nextUser = await authController.fetchCurrentUser();
     setUser(nextUser);
@@ -81,7 +92,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, logout, refreshUser, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

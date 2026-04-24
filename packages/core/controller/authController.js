@@ -26,6 +26,13 @@ export const register = async (userData) => {
   return user;
 };
 
+export const loginWithGoogle = async (idToken, role = 'voyageur') => {
+  const data = await post('/auth/google', { idToken, role_type: role });
+  const user = mapUser(data.user);
+  saveSession({ token: data.token, user });
+  return user;
+};
+
 export const logout = async () => {
   storage.removeItem('token');
   storage.removeItem('user');

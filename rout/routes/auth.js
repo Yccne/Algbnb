@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { verifierToken } = require('../middlewares/ann');
 const { signToken, sanitizeUser, hashToken, generateResetToken } = require('../utils/auth');
+const admin = require('../utils/firebaseAdmin');
 
 const router = express.Router();
 
@@ -104,6 +105,69 @@ router.post('/register', registerHandler);
 router.post('/connexion', loginHandler);
 router.post('/login', loginHandler);
 
+router.post('/google', async (req, res) => {
+  const { idToken, role_type = 'voyageur' } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ erreur: 'Token Google manquant.' });
+  }
+
+  if (!['voyageur', 'hote'].includes(role_type)) {
+    return res.status(400).json({ erreur: 'Le rôle doit être voyageur ou hote.' });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const email = decoded.email ? decoded.email.toLowerCase() : null;
+    const name = decoded.name || '';
+    const picture = decoded.picture || null;
+
+    const queryText = email
+      ? 'SELECT * FROM utilisateur WHERE provider_id = $1 OR email = $2 LIMIT 1'
+      : 'SELECT * FROM utilisateur WHERE provider_id = $1 LIMIT 1';
+    const queryParams = email ? [uid, email] : [uid];
+    const result = await db.query(queryText, queryParams);
+
+    let user;
+    if (result.rows.length === 0) {
+      const parts = name.split(' ').filter(Boolean);
+      const prenom = parts[0] || 'Utilisateur';
+      const nom = parts.slice(1).join(' ') || prenom;
+
+      const insertResult = await db.query(
+        `INSERT INTO utilisateur (prenom, nom, email, photo_profil, role_type, provider_source, provider_id, est_verifie)
+         VALUES ($1, $2, $3, $4, $5, 'google', $6, TRUE)
+         RETURNING *`,
+        [prenom, nom, email, picture, role_type, uid]
+      );
+      user = insertResult.rows[0];
+    } else {
+      user = result.rows[0];
+      if (!user.provider_id || user.provider_source !== 'google') {
+        const updateResult = await db.query(
+          `UPDATE utilisateur
+           SET provider_id = $1,
+               provider_source = 'google',
+               est_verifie = TRUE,
+               photo_profil = COALESCE($2, photo_profil),
+               date_mise_a_jour = NOW()
+           WHERE id = $3
+           RETURNING *`,
+          [uid, picture, user.id]
+        );
+        user = updateResult.rows[0];
+      }
+    }
+
+    await db.query('UPDATE utilisateur SET derniere_connexion = NOW() WHERE id = $1', [user.id]);
+    const token = signToken(user);
+    return res.json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(401).json({ erreur: 'Authentification Google invalide.' });
+  }
+});
+
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -197,9 +261,9 @@ router.get('/me', verifierToken, async (req, res) => {
 
 router.get('/providers', (req, res) => {
   res.json({
-    google: Boolean(process.env.GOOGLE_CLIENT_ID),
+    google: Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY),
     facebook: Boolean(process.env.FACEBOOK_CLIENT_ID),
-    note: 'Les connexions sociales nécessitent des clés OAuth à fournir.',
+    note: 'Google utilise Firebase.',
   });
 });
 
