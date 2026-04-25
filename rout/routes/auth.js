@@ -1,50 +1,270 @@
+const crypto = require('crypto');
 const express = require('express');
-const router = express.Router();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
+const db = require('../db');
+const { verifierToken } = require('../middlewares/ann');
+const { signToken, sanitizeUser, hashToken, generateResetToken } = require('../utils/auth');
+const admin = require('../utils/firebaseAdmin');
 
-// Inscription
-router.post('/inscription', async (req, res) => {
-  const { nom, prenom, email, mot_de_passe, telephone, role_type } = req.body;
+const router = express.Router();
+
+const isUniqueViolation = (error) => error.code === '23505';
+
+const getLoginField = ({ identifier, email, telephone }) => {
+  if (identifier) {
+    return identifier.includes('@')
+      ? { field: 'email', value: identifier.toLowerCase() }
+      : { field: 'telephone', value: identifier };
+  }
+
+  if (email) return { field: 'email', value: email.toLowerCase() };
+  if (telephone) return { field: 'telephone', value: telephone };
+  return null;
+};
+
+const registerHandler = async (req, res) => {
+  const {
+    nom,
+    prenom,
+    email,
+    telephone,
+    mot_de_passe,
+    password,
+    role_type = 'voyageur',
+  } = req.body;
+
+  if (!nom || !prenom || !(email || telephone) || !(mot_de_passe || password)) {
+    return res.status(400).json({ erreur: 'Nom, prénom, contact et mot de passe sont obligatoires.' });
+  }
+
+  if (!['voyageur', 'hote'].includes(role_type)) {
+    return res.status(400).json({ erreur: 'Le rôle doit être voyageur ou hote.' });
+  }
+
   try {
-    const hashMotDePasse = await bcrypt.hash(mot_de_passe, 10);
-    const result = await pool.query(
-      `INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, telephone, role_type)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nom, prenom, email, role_type`,
-      [nom, prenom, email, hashMotDePasse, telephone, role_type]
+    const hashedPassword = await bcrypt.hash(mot_de_passe || password, 10);
+    const result = await db.query(
+      `
+        INSERT INTO utilisateur (
+          nom, prenom, email, telephone, mot_de_passe, role_type, provider_source
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'local')
+        RETURNING *
+      `,
+      [nom.trim(), prenom.trim(), email ? email.toLowerCase() : null, telephone || null, hashedPassword, role_type]
     );
-    const user = result.rows[0];
 
-    if (role_type === 'hote') {
-      await pool.query('INSERT INTO hote (id_utilisateur) VALUES ($1)', [user.id]);
-    } else {
-      await pool.query('INSERT INTO voyageur (id_utilisateur) VALUES ($1)', [user.id]);
+    const user = result.rows[0];
+    const token = signToken(user);
+    return res.status(201).json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return res.status(409).json({ erreur: 'Un compte existe déjà avec cet e-mail ou ce téléphone.' });
+    }
+    return res.status(500).json({ erreur: error.message });
+  }
+};
+
+const loginHandler = async (req, res) => {
+  const { mot_de_passe, password } = req.body;
+  const loginField = getLoginField(req.body);
+
+  if (!loginField || !(mot_de_passe || password)) {
+    return res.status(400).json({ erreur: 'Identifiant et mot de passe requis.' });
+  }
+
+  try {
+    const result = await db.query(`SELECT * FROM utilisateur WHERE ${loginField.field} = $1 LIMIT 1`, [loginField.value]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ erreur: 'Utilisateur introuvable.' });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role_type }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ token, user });
-  } catch (err) {
-    res.status(500).json({ erreur: err.message });
+    const user = result.rows[0];
+    if (!user.mot_de_passe) {
+      return res.status(400).json({ erreur: 'Ce compte doit se connecter avec son fournisseur social.' });
+    }
+    if (user.statut_compte !== 'actif') {
+      return res.status(403).json({ erreur: `Compte ${user.statut_compte}.` });
+    }
+
+    const valid = await bcrypt.compare(mot_de_passe || password, user.mot_de_passe);
+    if (!valid) {
+      return res.status(401).json({ erreur: 'Mot de passe incorrect.' });
+    }
+
+    await db.query('UPDATE utilisateur SET derniere_connexion = NOW() WHERE id = $1', [user.id]);
+    const token = signToken(user);
+    return res.json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
+  }
+};
+
+router.post('/inscription', registerHandler);
+router.post('/register', registerHandler);
+router.post('/connexion', loginHandler);
+router.post('/login', loginHandler);
+
+router.post('/google', async (req, res) => {
+  const { idToken, role_type = 'voyageur' } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ erreur: 'Token Google manquant.' });
+  }
+
+  if (!['voyageur', 'hote'].includes(role_type)) {
+    return res.status(400).json({ erreur: 'Le rôle doit être voyageur ou hote.' });
+  }
+
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const email = decoded.email ? decoded.email.toLowerCase() : null;
+    const name = decoded.name || '';
+    const picture = decoded.picture || null;
+
+    const queryText = email
+      ? 'SELECT * FROM utilisateur WHERE provider_id = $1 OR email = $2 LIMIT 1'
+      : 'SELECT * FROM utilisateur WHERE provider_id = $1 LIMIT 1';
+    const queryParams = email ? [uid, email] : [uid];
+    const result = await db.query(queryText, queryParams);
+
+    let user;
+    if (result.rows.length === 0) {
+      const parts = name.split(' ').filter(Boolean);
+      const prenom = parts[0] || 'Utilisateur';
+      const nom = parts.slice(1).join(' ') || prenom;
+
+      const insertResult = await db.query(
+        `INSERT INTO utilisateur (prenom, nom, email, photo_profil, role_type, provider_source, provider_id, est_verifie)
+         VALUES ($1, $2, $3, $4, $5, 'google', $6, TRUE)
+         RETURNING *`,
+        [prenom, nom, email, picture, role_type, uid]
+      );
+      user = insertResult.rows[0];
+    } else {
+      user = result.rows[0];
+      if (!user.provider_id || user.provider_source !== 'google') {
+        const updateResult = await db.query(
+          `UPDATE utilisateur
+           SET provider_id = $1,
+               provider_source = 'google',
+               est_verifie = TRUE,
+               photo_profil = COALESCE($2, photo_profil),
+               date_mise_a_jour = NOW()
+           WHERE id = $3
+           RETURNING *`,
+          [uid, picture, user.id]
+        );
+        user = updateResult.rows[0];
+      }
+    }
+
+    await db.query('UPDATE utilisateur SET derniere_connexion = NOW() WHERE id = $1', [user.id]);
+    const token = signToken(user);
+    return res.json({ token, user: sanitizeUser(user) });
+  } catch (error) {
+    return res.status(401).json({ erreur: 'Authentification Google invalide.' });
   }
 });
 
-// Connexion
-router.post('/connexion', async (req, res) => {
-  const { email, mot_de_passe } = req.body;
-  try {
-    const result = await pool.query('SELECT * FROM utilisateur WHERE email = $1', [email]);
-    if (result.rows.length === 0) return res.status(404).json({ erreur: 'Utilisateur non trouvé' });
-
-    const user = result.rows[0];
-    const valide = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
-    if (!valide) return res.status(401).json({ erreur: 'Mot de passe incorrect' });
-
-    const token = jwt.sign({ id: user.id, role: user.role_type }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, nom: user.nom, prenom: user.prenom, email: user.email, role_type: user.role_type } });
-  } catch (err) {
-    res.status(500).json({ erreur: err.message });
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ erreur: 'L’e-mail est obligatoire.' });
   }
+
+  try {
+    const userResult = await db.query('SELECT * FROM utilisateur WHERE email = $1 LIMIT 1', [email.toLowerCase()]);
+    if (userResult.rows.length === 0) {
+      return res.json({ message: 'Si cet e-mail existe, un lien de réinitialisation a été généré.' });
+    }
+
+    const user = userResult.rows[0];
+    const rawToken = generateResetToken();
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    await db.query('DELETE FROM password_reset_token WHERE id_utilisateur = $1', [user.id]);
+    await db.query(
+      `
+        INSERT INTO password_reset_token (id_utilisateur, token_hash, expires_at)
+        VALUES ($1, $2, $3)
+      `,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    const clientUrl = (process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const resetUrl = `${clientUrl}/reset-password?token=${rawToken}`;
+    return res.json({
+      message: 'Lien de réinitialisation généré pour le mode local.',
+      reset_token: rawToken,
+      reset_url: resetUrl,
+      expires_at: expiresAt,
+    });
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { token, mot_de_passe, password } = req.body;
+  if (!token || !(mot_de_passe || password)) {
+    return res.status(400).json({ erreur: 'Token et nouveau mot de passe requis.' });
+  }
+
+  try {
+    const tokenHash = hashToken(token);
+    const result = await db.query(
+      `
+        SELECT * FROM password_reset_token
+        WHERE token_hash = $1
+          AND used_at IS NULL
+          AND expires_at > NOW()
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      [tokenHash]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ erreur: 'Token invalide ou expiré.' });
+    }
+
+    const resetRow = result.rows[0];
+    const hashedPassword = await bcrypt.hash(mot_de_passe || password, 10);
+
+    await db.query('UPDATE utilisateur SET mot_de_passe = $1, provider_source = $2, date_mise_a_jour = NOW() WHERE id = $3', [
+      hashedPassword,
+      'local',
+      resetRow.id_utilisateur,
+    ]);
+    await db.query('UPDATE password_reset_token SET used_at = NOW() WHERE id = $1', [resetRow.id]);
+
+    return res.json({ message: 'Mot de passe mis à jour.' });
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
+  }
+});
+
+router.get('/me', verifierToken, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM utilisateur WHERE id = $1 LIMIT 1', [req.user.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ erreur: 'Utilisateur introuvable.' });
+    }
+    return res.json({ user: sanitizeUser(result.rows[0]) });
+  } catch (error) {
+    return res.status(500).json({ erreur: error.message });
+  }
+});
+
+router.get('/providers', (req, res) => {
+  res.json({
+    google: Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY),
+    facebook: Boolean(process.env.FACEBOOK_CLIENT_ID),
+    note: 'Google utilise Firebase.',
+  });
 });
 
 module.exports = router;

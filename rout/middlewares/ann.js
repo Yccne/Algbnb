@@ -1,38 +1,31 @@
 const jwt = require('jsonwebtoken');
 
-/**
- * Middleware : vérifie que le token JWT est valide.
- * Ajoute req.user = { id, role } si OK.
- */
-const verifierToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    return res.status(401).json({ erreur: 'Token manquant — accès refusé' });
-  }
+const jwtSecret = process.env.JWT_SECRET || 'change-me-local-dev-secret';
 
-  const token = authHeader.split(' ')[1]; // format : "Bearer <token>"
+const verifierToken = (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
   if (!token) {
-    return res.status(401).json({ erreur: 'Format de token invalide' });
+    return res.status(401).json({ erreur: 'Authentification requise.' });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role }
-    next();
-  } catch (err) {
-    return res.status(403).json({ erreur: 'Token expiré ou invalide' });
+    req.user = jwt.verify(token, jwtSecret);
+    return next();
+  } catch (error) {
+    return res.status(403).json({ erreur: 'Token invalide ou expiré.' });
   }
 };
 
-/**
- * Middleware : autorise uniquement les hôtes.
- * À utiliser APRÈS verifierToken.
- */
-const estHote = (req, res, next) => {
-  if (req.user.role !== 'hote') {
-    return res.status(403).json({ erreur: 'Accès réservé aux hôtes' });
+const exigerRole = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ erreur: 'Vous n’avez pas les droits nécessaires.' });
   }
-  next();
+  return next();
 };
 
-module.exports = { verifierToken, estHote };
+const estHote = exigerRole('hote', 'admin');
+const estAdmin = exigerRole('admin');
+
+module.exports = { verifierToken, exigerRole, estHote, estAdmin, jwtSecret };

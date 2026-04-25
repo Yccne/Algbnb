@@ -1,116 +1,108 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Edit2, Save, X } from 'lucide-react';
+import { userController } from '@algbnb/core';
+import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
 import { BottomNavBar } from '../components/BottomNavBar';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Edit2, Save, X } from 'lucide-react';
+
+const defaultAvatar = 'https://placehold.co/200x200?text=Profil';
 
 export const PageProfil = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  
+  const { user, logout, updateProfile } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [stats, setStats] = useState({});
   const [isEditing, setIsEditing] = useState(false);
-  const [profilData, setProfilData] = useState({
-    nom: user ? user.nom : 'Amine Benali',
-    email: user ? user.email : 'amine@example.com',
-    telephone: '+213 5 55 12 34 56',
-    aPropos: "Passionné de voyages et de découvertes architecturales. J'aime partager mes bonnes adresses et découvrir des lieux qui racontent une histoire unique à travers le monde."
-  });
+  const [form, setForm] = useState({ nom: '', prenom: '', email: '', telephone: '', bio: '' });
+  const [error, setError] = useState('');
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      try {
+        const data = await userController.getMyProfile();
+        setProfile(data.user);
+        setStats(data.stats);
+        setForm({
+          nom: data.user.nom || '',
+          prenom: data.user.prenom || '',
+          email: data.user.email || '',
+          telephone: data.user.telephone || '',
+          bio: data.user.bio || '',
+        });
+      } catch (loadError) {
+        setError(loadError.message);
+      }
+    };
+    load();
+  }, [user]);
 
-  const saveProfile = () => {
-    setIsEditing(false);
-    alert('Profil mis à jour avec succès !');
-  };
-
-  const avisProfile = [
-    {
-      auteur: "Samia L.",
-      date: "Mai 2026",
-      texte: "Un hôte exceptionnel ! Amine a été très réactif et de bon conseil pour mon séjour à Alger."
-    },
-    {
-      auteur: "Marc V.",
-      date: "Avril 2024",
-      texte: "Logement impeccable et accueil chaleureux. Je recommande vivement l'expérience avec Alexandre."
-    },
-    {
-      auteur: "Fahd K.",
-      date: "Mars 2026",
-      texte: "Parfait de A à Z. La communication était fluide et le lieu magnifique."
+  const saveProfile = async () => {
+    try {
+      const updated = await updateProfile(form);
+      setProfile(updated);
+      setIsEditing(false);
+    } catch (saveError) {
+      setError(saveError.message);
     }
-  ];
+  };
+
+  if (!user) {
+    return (
+      <div>
+        <Navbar />
+        <div style={{ padding: 'var(--spacing-16)', textAlign: 'center' }}>Connecte-toi pour accéder à ton profil.</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
-      
       <div className="page-container" style={{ flex: 1, marginTop: 'var(--spacing-16)' }}>
-        
-        <header style={{ display: 'flex', gap: 'var(--spacing-8)', alignItems: 'center', borderBottom: '1px solid var(--surface-high)', paddingBottom: 'var(--spacing-16)', marginBottom: 'var(--spacing-12)' }}>
-          <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'var(--surface-high)', overflow: 'hidden' }}>
-            <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=200&q=80" alt="Alexandre" style={{width:'100%', height:'100%', objectFit:'cover'}} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-2)' }}>
-              <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-                {profilData.nom}
-              </h1>
-              {!isEditing && (
-                <button className="btn-outline" onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: 'var(--spacing-2) var(--spacing-4)' }}>
-                  <Edit2 size={16} /> Modifier profile
-                </button>
-              )}
-            </div>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Membre depuis Juin 2021
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--spacing-4)', flexWrap: 'wrap' }}>
-              <button className="btn-primary" onClick={() => navigate('/dashboard-hote')}>
-                Mon Dashboard Hôte
-              </button>
-              <button className="btn-outline" onClick={() => navigate('/reservations')}>
-                Mes Voyages
-              </button>
-              <button className="btn-outline" onClick={() => navigate('/creer-annonce')}>
-                Créer une annonce
-              </button>
-              {user && (
-                <button className="btn-outline" style={{ color: 'var(--error)' }} onClick={handleLogout}>
-                  Déconnexion
-                </button>
-              )}
-            </div>
-          </div>
-        </header>
+        {profile && (
+          <>
+            <header style={{ display: 'flex', gap: 'var(--spacing-8)', alignItems: 'center', borderBottom: '1px solid var(--surface-high)', paddingBottom: 'var(--spacing-16)', marginBottom: 'var(--spacing-12)' }}>
+              <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: 'var(--surface-high)', overflow: 'hidden' }}>
+                <img src={profile.photo_profil || defaultAvatar} alt={profile.nomComplet} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-2)' }}>
+                  <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{profile.nomComplet}</h1>
+                  {!isEditing && (
+                    <button className="btn-outline" onClick={() => setIsEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Edit2 size={16} /> Modifier
+                    </button>
+                  )}
+                </div>
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Membre depuis {profile.date_inscription?.slice(0, 10)}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--spacing-4)' }}>
+                  <div className="card" style={{ padding: 'var(--spacing-4)' }}>
+                    <strong>{stats.nb_reservations || 0}</strong>
+                    <div style={{ color: 'var(--on-surface-variant)' }}>Réservations</div>
+                  </div>
+                  <div className="card" style={{ padding: 'var(--spacing-4)' }}>
+                    <strong>{stats.nb_favoris || 0}</strong>
+                    <div style={{ color: 'var(--on-surface-variant)' }}>Favoris</div>
+                  </div>
+                  <div className="card" style={{ padding: 'var(--spacing-4)' }}>
+                    <strong>{stats.nb_annonces || 0}</strong>
+                    <div style={{ color: 'var(--on-surface-variant)' }}>Annonces</div>
+                  </div>
+                </div>
+              </div>
+            </header>
 
-        <div style={{ display: 'flex', gap: 'var(--spacing-16)', flexWrap: 'wrap' }}>
-          <div style={{ flex: '2 1 600px' }}>
-            
+            {error && <div style={{ marginBottom: 'var(--spacing-6)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(180, 35, 24, 0.08)', color: 'var(--error)', borderRadius: 'var(--radius-DEFAULT)' }}>{error}</div>}
+
             {isEditing ? (
               <section style={{ backgroundColor: 'var(--surface-lowest)', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-ambient)', marginBottom: 'var(--spacing-16)' }}>
-                <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-6)' }}>Modifier vos informations</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>Nom complet</label>
-                    <input type="text" value={profilData.nom} onChange={e => setProfilData({...profilData, nom: e.target.value})} style={{ padding: 'var(--spacing-3)', width: '100%', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>Email</label>
-                    <input type="email" value={profilData.email} onChange={e => setProfilData({...profilData, email: e.target.value})} style={{ padding: 'var(--spacing-3)', width: '100%', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>Téléphone</label>
-                    <input type="tel" value={profilData.telephone} onChange={e => setProfilData({...profilData, telephone: e.target.value})} style={{ padding: 'var(--spacing-3)', width: '100%', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)' }} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--body-sm)', color: 'var(--on-surface-variant)', marginBottom: '4px' }}>À propos de moi</label>
-                    <textarea rows="4" value={profilData.aPropos} onChange={e => setProfilData({...profilData, aPropos: e.target.value})} style={{ padding: 'var(--spacing-3)', width: '100%', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-DEFAULT)', resize: 'vertical' }} />
-                  </div>
+                <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-6)' }}>Modifier mes informations</h2>
+                <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
+                  <input value={form.prenom} onChange={(event) => setForm((current) => ({ ...current, prenom: event.target.value }))} placeholder="Prénom" className="input-field" />
+                  <input value={form.nom} onChange={(event) => setForm((current) => ({ ...current, nom: event.target.value }))} placeholder="Nom" className="input-field" />
+                  <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="Email" className="input-field" />
+                  <input value={form.telephone} onChange={(event) => setForm((current) => ({ ...current, telephone: event.target.value }))} placeholder="Téléphone" className="input-field" />
+                  <textarea value={form.bio} onChange={(event) => setForm((current) => ({ ...current, bio: event.target.value }))} placeholder="Bio" rows="5" className="input-field" />
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--spacing-4)', marginTop: 'var(--spacing-8)' }}>
                   <button className="btn-primary" onClick={saveProfile} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -123,46 +115,31 @@ export const PageProfil = () => {
               </section>
             ) : (
               <section style={{ marginBottom: 'var(--spacing-16)' }}>
-                <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-4)' }}>À propos de moi</h2>
-                <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-md)', lineHeight: 1.6 }}>
-                  {profilData.aPropos}
-                </p>
-                <div style={{ marginTop: 'var(--spacing-6)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--spacing-4)' }}>
+                <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-4)' }}>À propos</h2>
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-md)', lineHeight: 1.6 }}>{profile.bio || 'Aucune bio renseignée.'}</p>
+                <div style={{ marginTop: 'var(--spacing-6)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--spacing-4)' }}>
                   <div>
                     <span style={{ display: 'block', fontSize: 'var(--label-sm)', color: 'var(--on-surface-variant)' }}>Email</span>
-                    <span style={{ fontSize: 'var(--body-md)' }}>{profilData.email}</span>
+                    <span style={{ fontSize: 'var(--body-md)' }}>{profile.email || 'Non renseigné'}</span>
                   </div>
                   <div>
                     <span style={{ display: 'block', fontSize: 'var(--label-sm)', color: 'var(--on-surface-variant)' }}>Téléphone</span>
-                    <span style={{ fontSize: 'var(--body-md)' }}>{profilData.telephone}</span>
+                    <span style={{ fontSize: 'var(--body-md)' }}>{profile.telephone || 'Non renseigné'}</span>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: 'var(--label-sm)', color: 'var(--on-surface-variant)' }}>Rôle</span>
+                    <span style={{ fontSize: 'var(--body-md)' }}>{profile.role_type}</span>
                   </div>
                 </div>
               </section>
             )}
 
-            <section>
-              <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-8)' }}>Avis (12)</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-8)' }}>
-                {avisProfile.map((av, idx) => (
-                  <div key={idx} style={{ paddingBottom: 'var(--spacing-6)', borderBottom: '1px solid var(--surface-high)' }}>
-                    <h4 style={{ fontSize: 'var(--title-lg)', fontWeight: 'bold' }}>{av.auteur}</h4>
-                    <p style={{ color: 'var(--on-surface-variant)', fontSize: '13px', marginBottom: 'var(--spacing-4)' }}>{av.date}</p>
-                    <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-md)', fontStyle: 'italic' }}>"{av.texte}"</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </div>
+            <button className="btn-outline" onClick={logout} style={{ color: 'var(--error)' }}>
+              Déconnexion
+            </button>
+          </>
+        )}
       </div>
-
-      <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
-        <Link to="#" className="footer-link">Confidentialité</Link>
-        <Link to="#" className="footer-link">Conditions</Link>
-        <Link to="#" className="footer-link">Plan du site</Link>
-        <Link to="#" className="footer-link" style={{marginRight: 0}}>Destinations</Link>
-      </footer>
-      
       <BottomNavBar />
     </div>
   );

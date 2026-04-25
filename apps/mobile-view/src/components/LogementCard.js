@@ -1,45 +1,87 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { favorisController } from '@algbnb/core';
+import { useAuth } from '../context/AuthContext';
 import { theme } from '../styles/theme';
 
-export const LogementCard = ({ logement, onPress }) => {
-  const [isFav, setIsFav] = useState(false);
+const fallbackImage = 'https://placehold.co/800x600?text=Photo+Logement';
+
+export const LogementCard = ({ logement, onPress, initialFavorite = false, onFavoriteChange }) => {
+  const navigation = useNavigation();
+  const { user } = useAuth();
+  const [isFav, setIsFav] = useState(initialFavorite);
+  const [saving, setSaving] = useState(false);
+  const image = logement.photos?.[0] || fallbackImage;
+
+  useEffect(() => {
+    setIsFav(initialFavorite);
+  }, [initialFavorite, logement.id]);
+
+  const handleToggleFavorite = async (event) => {
+    event?.stopPropagation?.();
+
+    if (saving) {
+      return;
+    }
+
+    if (!user) {
+      navigation.navigate('Connexion');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isFav) {
+        await favorisController.supprimerFavori(logement.id);
+      } else {
+        await favorisController.ajouterFavori(logement.id);
+      }
+      const next = !isFav;
+      setIsFav(next);
+      onFavoriteChange?.(next);
+    } catch (error) {
+      console.error('Erreur favoris:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.card}>
-      {/* Image Container */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: logement.photos[0] }} style={styles.image} />
+        <Image source={{ uri: image }} style={styles.image} />
 
-        {/* Rating Badge - glassmorphism */}
         <View style={styles.ratingBadge}>
           <Text style={styles.star}>★</Text>
-          <Text style={styles.ratingText}>{logement.note}</Text>
+          <Text style={styles.ratingText}>{Number(logement.note || 0).toFixed(1)}</Text>
         </View>
 
-        {/* Favorite button */}
         <TouchableOpacity
-          onPress={(e) => { e.stopPropagation && e.stopPropagation(); setIsFav(!isFav); }}
-          style={styles.favButton}
+          onPress={handleToggleFavorite}
+          style={[styles.favButton, saving && { opacity: 0.6 }]}
           activeOpacity={0.8}
+          disabled={saving}
         >
           <Text style={{ color: isFav ? theme.colors.heart : theme.colors.onSurface, fontSize: 16 }}>
             {isFav ? '♥' : '♡'}
           </Text>
         </TouchableOpacity>
 
-        {/* Price chip on image */}
         <View style={styles.priceChip}>
           <Text style={styles.priceText}>{logement.prix} DZD </Text>
           <Text style={styles.priceUnit}>/ nuit</Text>
         </View>
       </View>
 
-      {/* Card Body */}
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>{logement.titre}</Text>
+        <Text style={styles.title} numberOfLines={1}>
+          {logement.titre}
+        </Text>
         <Text style={styles.subtitle}>{logement.ville}</Text>
-        <Text style={styles.meta}>{logement.type} · {logement.voyageurs || 4} voyageurs</Text>
+        <Text style={styles.meta}>
+          {logement.type} · {logement.voyageurs || 1} voyageur{(logement.voyageurs || 1) > 1 ? 's' : ''}
+        </Text>
       </View>
     </TouchableOpacity>
   );

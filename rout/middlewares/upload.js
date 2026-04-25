@@ -1,40 +1,46 @@
-const multer = require('multer');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
-// Crée le dossier uploads/logements s'il n'existe pas
-const dossierUpload = path.join(__dirname, '..', '..', 'uploads', 'logements');
-if (!fs.existsSync(dossierUpload)) {
-  fs.mkdirSync(dossierUpload, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, dossierUpload);
-  },
-  filename: (req, file, cb) => {
-    // ex: logement_1714500000000_photo.jpg
-    const nomFichier = `logement_${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
-    cb(null, nomFichier);
-  }
-});
-
-const filtreImage = (req, file, cb) => {
-  const typesAcceptes = ['image/jpeg', 'image/png', 'image/webp'];
-  if (typesAcceptes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Format non accepté. Utilisez JPG, PNG ou WEBP.'), false);
+const ensureDir = (folder) => {
+  if (!fs.existsSync(folder)) {
+    fs.mkdirSync(folder, { recursive: true });
   }
 };
 
-const upload = multer({
-  storage,
-  fileFilter: filtreImage,
-  limits: {
-    fileSize: 5 * 1024 * 1024,   // 5 Mo max par photo
-    files: 10                     // 10 photos max
+const imageFilter = (req, file, callback) => {
+  const accepted = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!accepted.includes(file.mimetype)) {
+    return callback(new Error('Format non supporté. Utilisez JPG, PNG ou WEBP.'));
   }
-});
+  return callback(null, true);
+};
 
-module.exports = upload;
+const createStorage = (subfolder, prefix) => {
+  const destination = path.join(__dirname, '..', '..', 'uploads', subfolder);
+  ensureDir(destination);
+
+  return multer.diskStorage({
+    destination: (req, file, callback) => callback(null, destination),
+    filename: (req, file, callback) => {
+      const safeName = file.originalname.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
+      callback(null, `${prefix}_${Date.now()}_${safeName}`);
+    },
+  });
+};
+
+const createUploader = (subfolder, prefix, maxFiles = 10) =>
+  multer({
+    storage: createStorage(subfolder, prefix),
+    fileFilter: imageFilter,
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: maxFiles,
+    },
+  });
+
+module.exports = {
+  logementUpload: createUploader('logements', 'logement', 10),
+  profilUpload: createUploader('profiles', 'profile', 1),
+  messageUpload: createUploader('messages', 'message', 1),
+};

@@ -1,43 +1,79 @@
-const API_URL = 'http://localhost:3001/api';
-let currentUser = null;
+import { get, patch, post } from '../apiClient.js';
+import { storage } from '../storage.js';
+import { mapUser } from './_shared.js';
 
-export const login = async (email, password) => {
-  const res = await fetch(`${API_URL}/auth/connexion`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, mot_de_passe: password })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.erreur);
-  currentUser = data.user;
-  localStorage.setItem('token', data.token);
-  localStorage.setItem('user', JSON.stringify(data.user));
-  return data.user;
+const saveSession = ({ token, user }) => {
+  if (token) storage.setItem('token', token);
+  if (user) storage.setItem('user', JSON.stringify(user));
+};
+
+export const login = async (identifierOrEmail, password) => {
+  const payload =
+    typeof identifierOrEmail === 'object'
+      ? identifierOrEmail
+      : { identifier: identifierOrEmail, mot_de_passe: password };
+
+  const data = await post('/auth/connexion', payload);
+  const user = mapUser(data.user);
+  saveSession({ token: data.token, user });
+  return user;
 };
 
 export const register = async (userData) => {
-  const res = await fetch(`${API_URL}/auth/inscription`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData)
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.erreur);
-  currentUser = data.user;
-  localStorage.setItem('token', data.token);
-  localStorage.setItem('user', JSON.stringify(data.user));
-  return data.user;
+  const data = await post('/auth/inscription', userData);
+  const user = mapUser(data.user);
+  saveSession({ token: data.token, user });
+  return user;
+};
+
+export const loginWithGoogle = async (idToken, role = 'voyageur') => {
+  const data = await post('/auth/google', { idToken, role_type: role });
+  const user = mapUser(data.user);
+  saveSession({ token: data.token, user });
+  return user;
 };
 
 export const logout = async () => {
-  currentUser = null;
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  storage.removeItem('token');
+  storage.removeItem('user');
   return true;
 };
 
 export const getCurrentUser = () => {
-  if (currentUser) return currentUser;
-  const saved = localStorage.getItem('user');
-  return saved ? JSON.parse(saved) : null;
+  const saved = storage.getItem('user');
+  if (!saved) return null;
+  try {
+    return mapUser(JSON.parse(saved));
+  } catch (error) {
+    return null;
+  }
 };
+
+export const getToken = () => storage.getItem('token');
+
+export const fetchCurrentUser = async () => {
+  const data = await get('/auth/me');
+  const user = mapUser(data.user);
+  storage.setItem('user', JSON.stringify(user));
+  return user;
+};
+
+export const updateProfile = async (payload) => {
+  const data = await patch('/users/me', payload);
+  const user = mapUser(data.user);
+  storage.setItem('user', JSON.stringify(user));
+  return user;
+};
+
+export const uploadProfilePhoto = async (file) => {
+  const formData = new FormData();
+  formData.append('photo', file);
+  const data = await post('/users/me/photo', formData);
+  const user = mapUser(data.user);
+  storage.setItem('user', JSON.stringify(user));
+  return user;
+};
+
+export const forgotPassword = async (email) => post('/auth/forgot-password', { email });
+export const resetPassword = async (token, mot_de_passe) => post('/auth/reset-password', { token, mot_de_passe });
+export const getAuthProviders = () => get('/auth/providers');

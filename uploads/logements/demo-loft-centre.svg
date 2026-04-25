@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <rect width="1600" height="1000" fill="#f4efe7"/>
+  <rect x="0" y="0" width="1600" height="260" fill="#c96f4a"/>
+  <rect x="120" y="320" width="1360" height="520" rx="26" fill="#fffaf2"/>
+  <rect x="180" y="390" width="360" height="340" rx="16" fill="#ddb78a"/>
+  <rect x="600" y="390" width="300" height="70" rx="12" fill="#d2c6b6"/>
+  <rect x="600" y="492" width="480" height="28" rx="14" fill="#d2c6b6"/>
+  <rect x="600" y="544" width="420" height="28" rx="14" fill="#d2c6b6"/>
+  <rect x="600" y="596" width="360" height="28" rx="14" fill="#d2c6b6"/>
+  <rect x="1120" y="390" width="260" height="220" rx="16" fill="#90a77d"/>
+  <rect x="1120" y="644" width="180" height="86" rx="16" fill="#1a4a43"/>
+  <text x="120" y="920" font-family="Arial, sans-serif" font-size="58" fill="#3c2b25">Loft urbain centre-ville</text>
+</svg>

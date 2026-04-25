@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { logementController } from '@algbnb/core';
 import { LogementCard } from '../components/LogementCard';
@@ -143,16 +143,11 @@ export const PageAccueil = () => {
         </View>
       </View>
 
-      {/* Testimonial */}
-      <View style={styles.testimonial}>
-        <Image
-          source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&q=80' }}
-          style={styles.testimonialAvatar}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.testimonialQuote}>"Ma priorité est que chaque voyageur se sente comme chez lui, avec une touche de luxe en plus."</Text>
-          <Text style={styles.testimonialAuthor}>Jean-Marc <Text style={styles.testimonialSince}>— Super Hôte depuis 5 ans</Text></Text>
-        </View>
+      <View style={styles.statusPanel}>
+        <Text style={styles.statusTitle}>Projet pret pour la demonstration</Text>
+        <Text style={styles.statusText}>
+          Les logements, reservations, favoris et messages affiches ici viennent maintenant de la base PostgreSQL locale.
+        </Text>
       </View>
 
       {/* Footer */}
@@ -320,39 +315,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  testimonial: {
-    flexDirection: 'row',
-    padding: theme.spacing.m,
+  statusPanel: {
+    padding: theme.spacing.l,
     backgroundColor: theme.colors.surfaceLowest,
     borderRadius: theme.radius.lg,
     marginHorizontal: theme.spacing.m,
     marginBottom: theme.spacing.xl,
-    alignItems: 'center',
-    gap: 16,
     ...theme.shadow.sm,
   },
-  testimonialAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 3,
-    borderColor: theme.colors.primaryContainer,
+  statusTitle: {
+    fontSize: theme.fontSize.titleLg,
+    fontWeight: '700',
+    color: theme.colors.onSurface,
+    marginBottom: theme.spacing.xs,
   },
-  testimonialQuote: {
-    fontStyle: 'italic',
+  statusText: {
+    color: theme.colors.onSurfaceVariant,
     fontSize: theme.fontSize.bodyMd,
     lineHeight: 22,
-    marginBottom: theme.spacing.xs,
-    color: theme.colors.onSurface,
-  },
-  testimonialAuthor: {
-    fontWeight: '600',
-    fontSize: theme.fontSize.bodySm,
-    color: theme.colors.onSurface,
-  },
-  testimonialSince: {
-    fontWeight: '400',
-    color: theme.colors.onSurfaceVariant,
   },
   footer: {
     paddingVertical: theme.spacing.l,
