@@ -64,7 +64,7 @@ export const ListingsMap = ({ listings }) => {
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
-    const validListings = listings.filter((listing) => Number.isFinite(listing.lat) && Number.isFinite(listing.lng));
+    const validListings = listings.filter((listing) => Number.isFinite(listing.latitude) && Number.isFinite(listing.longitude));
     if (validListings.length === 0) return;
 
     const bounds = new maplibregl.LngLatBounds();
@@ -72,12 +72,12 @@ export const ListingsMap = ({ listings }) => {
     const duplicateCounts = new Map();
     const duplicateIndexes = new Map();
     validListings.forEach((listing) => {
-      const key = `${Number(listing.lat).toFixed(6)},${Number(listing.lng).toFixed(6)}`;
+      const key = `${Number(listing.latitude).toFixed(6)},${Number(listing.longitude).toFixed(6)}`;
       duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
     });
 
     validListings.forEach((listing) => {
-      const key = `${Number(listing.lat).toFixed(6)},${Number(listing.lng).toFixed(6)}`;
+      const key = `${Number(listing.latitude).toFixed(6)},${Number(listing.longitude).toFixed(6)}`;
       const index = duplicateIndexes.get(key) || 0;
       duplicateIndexes.set(key, index + 1);
       const duplicateCount = duplicateCounts.get(key) || 1;
@@ -105,12 +105,12 @@ export const ListingsMap = ({ listings }) => {
       );
 
       const marker = new maplibregl.Marker({ element: markerElement, offset: markerOffset })
-        .setLngLat([listing.lng, listing.lat])
+        .setLngLat([listing.longitude, listing.latitude])
         .setPopup(popup)
         .addTo(map);
 
       markersRef.current.push(marker);
-      bounds.extend([listing.lng, listing.lat]);
+      bounds.extend([listing.longitude, listing.latitude]);
     });
 
     map.fitBounds(bounds, { padding: 50, maxZoom: 14 });

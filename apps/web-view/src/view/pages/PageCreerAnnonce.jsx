@@ -664,13 +664,13 @@ export const PageCreerAnnonce = () => {
                 center={mapCenter}
                 onPick={handleMapPick}
                 onCenterChange={setCurrentMapCenter}
-                disabled={!selectedLocation || geocoding}
+                disabled={geocoding}
               />
               <button
                 type="button"
                 className="btn-outline"
                 onClick={placeMarkerAtMapCenter}
-                disabled={!selectedLocation || geocoding}
+                disabled={geocoding}
               >
                 {geocoding ? 'Verification de la position...' : 'Placer le marqueur au centre de la carte'}
               </button>

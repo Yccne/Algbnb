@@ -83,6 +83,10 @@ export const PageLogement = () => {
   const reservationActionLabel = requiresApproval ? 'Demander a reserver' : 'Reserver maintenant';
 
   const handleReserve = () => {
+    if (user && (user.role_type === "admin" || user.role_type === "hote")) {
+      alert("Seuls les voyageurs peuvent faire une reservation.");
+      return;
+    }
     if (!user) {
       navigate('/connexion');
       return;

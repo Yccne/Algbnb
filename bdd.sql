@@ -249,3 +249,5 @@ CREATE TABLE litige (
     date_resolution TIMESTAMP,
     CONSTRAINT ck_litige_statut CHECK (statut IN ('ouvert', 'en_cours', 'resolu', 'ferme'))
 );
+
+INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, role_type, provider_source) VALUES ('Admin', 'Algbnb', 'admin@algbnb.com', '.fTeLCV0rpuUbeRe./CjOs5YnK05S//Z3rLJXn7otGLAB/ZJRmIO', 'admin', 'local') ON CONFLICT (email) DO NOTHING;
