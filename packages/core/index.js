@@ -14,3 +14,4 @@ export * as favorisController from './controller/favorisController.js';
 export * as userController from './controller/userController.js';
 export * as notificationsController from './controller/notificationsController.js';
 export * as adminController from './controller/adminController.js';
+export * as paiementController from './controller/paiementController.js';

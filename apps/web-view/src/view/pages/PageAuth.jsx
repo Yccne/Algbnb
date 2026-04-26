@@ -113,7 +113,7 @@ export const PageAuth = () => {
           nom: parts.slice(1).join(' ') || parts[0] || '',
           email: email.trim() || null,
           telephone: telephone.trim() || null,
-          mot_de_passe: password,
+          password: password,
           role_type: role,
         });
       }
