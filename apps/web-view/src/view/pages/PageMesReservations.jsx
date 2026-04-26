@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, Clock3, MapPin, Star, Wallet } from 'lucide-react';
 import { avisController, reservationController } from '@algbnb/core';
@@ -36,7 +36,7 @@ export const PageMesReservations = () => {
   const [reviewForms, setReviewForms] = useState({});
   const navigate = useNavigate();
 
-  const loadReservations = async () => {
+  const loadReservations = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -52,11 +52,11 @@ export const PageMesReservations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadReservations();
-  }, [user]);
+  }, [loadReservations]);
 
   const stats = useMemo(() => {
     const today = new Date();

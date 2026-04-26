@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { adminController } from '@algbnb/core';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +14,7 @@ export const PageAdmin = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     if (!user || user.role_type !== 'admin') {
       setLoading(false);
       return;
@@ -39,11 +39,11 @@ export const PageAdmin = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadAdminData();
-  }, [user]);
+  }, [loadAdminData]);
 
   const updateUserStatus = async (id, statut_compte) => {
     try {
@@ -152,7 +152,7 @@ export const PageAdmin = () => {
                     <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{item.email || item.telephone || 'Sans contact'}</div>
                   </div>
                   <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
-                    {item.role_type} • {item.est_verifie ? 'verifie' : 'non verifie'}
+                    {item.role_type} - {item.est_verifie ? 'verifie' : 'non verifie'}
                   </div>
                   <select className="input-field" value={item.statut_compte} onChange={(event) => updateUserStatus(item.id, event.target.value)} style={{ minWidth: '150px' }}>
                     <option value="actif">Actif</option>
@@ -169,7 +169,7 @@ export const PageAdmin = () => {
                 <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: 'var(--spacing-4)', alignItems: 'center', padding: 'var(--spacing-4)', borderRadius: 'var(--radius-DEFAULT)', backgroundColor: 'var(--surface-lowest)', boxShadow: 'var(--shadow-sm)' }}>
                   <div>
                     <div style={{ fontWeight: 700 }}>{item.titre}</div>
-                    <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{item.ville} • {item.hote_prenom} {item.hote_nom}</div>
+                    <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{item.ville} - {item.hote_prenom} {item.hote_nom}</div>
                   </div>
                   <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
                     {item.est_actif ? 'Publiee' : 'Hors ligne'}
@@ -194,7 +194,7 @@ export const PageAdmin = () => {
                   <div key={item.id} style={{ padding: 'var(--spacing-5)', backgroundColor: 'var(--surface-lowest)', borderRadius: 'var(--radius-DEFAULT)' }}>
                     <div style={{ fontWeight: 700, marginBottom: 'var(--spacing-2)' }}>{item.sujet}</div>
                     <div style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-2)' }}>{item.description}</div>
-                    <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{item.auteur_prenom} {item.auteur_nom} • {item.statut}</div>
+                    <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{item.auteur_prenom} {item.auteur_nom} - {item.statut}</div>
                   </div>
                 ))
               )}

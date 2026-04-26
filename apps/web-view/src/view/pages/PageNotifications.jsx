@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Bell, CheckCheck } from 'lucide-react';
 import { notificationsController } from '@algbnb/core';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +19,7 @@ export const PageNotifications = () => {
   const [error, setError] = useState('');
   const [markingAll, setMarkingAll] = useState(false);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -35,11 +35,11 @@ export const PageNotifications = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadNotifications();
-  }, [user]);
+  }, [loadNotifications]);
 
   const markOneRead = async (notification) => {
     if (notification.est_lue) return;

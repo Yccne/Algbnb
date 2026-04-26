@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ArrowLeft, ImagePlus, Send } from 'lucide-react';
 import { messagesController } from '@algbnb/core';
@@ -20,18 +20,18 @@ export const PageMessages = () => {
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     const data = await messagesController.getConversations();
     setConversations(data);
     return data;
-  };
+  }, []);
 
-  const loadMessages = async (conversation) => {
+  const loadMessages = useCallback(async (conversation) => {
     const data = await messagesController.getConversationMessages(conversation.conversation_id);
     setMessages(data);
-  };
+  }, []);
 
-  const selectConversation = async (conversation) => {
+  const selectConversation = useCallback(async (conversation) => {
     setSelectedConv(conversation);
     setError('');
     await loadMessages(conversation);
@@ -40,7 +40,7 @@ export const PageMessages = () => {
         item.conversation_id === conversation.conversation_id ? { ...item, nb_non_lus: 0 } : item
       )
     );
-  };
+  }, [loadMessages]);
 
   useEffect(() => {
     let active = true;
@@ -82,7 +82,7 @@ export const PageMessages = () => {
     return () => {
       active = false;
     };
-  }, [user, requestedConversationId]);
+  }, [user, requestedConversationId, loadConversations, selectConversation]);
 
   useEffect(() => {
     if (!selectedConv || !user) {
@@ -95,7 +95,7 @@ export const PageMessages = () => {
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [selectedConv, user]);
+  }, [selectedConv, user, loadMessages, loadConversations]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
