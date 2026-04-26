@@ -1,8 +1,38 @@
-node_modules
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Local environment files
+controller/api/.env
+view/web/.env
+view/mobile/.env
+*.env.local
+
+# Logs and temporary files
 *.log
-rout/.env
-apps/web-view/.env
-apps/mobile-view/.env
+*.tmp
+*.cache
+
+# Build artifacts and tool caches
+dist/
+**/dist/
+dist-ssr/
+web-build/
+.expo/
+**/.expo/
+.metro-health-check*
+
+# User/test uploads generated at runtime.
+# Keep only curated demo assets such as uploads/**/demo-*.svg.
 uploads/logements/logement_*.png
 uploads/logements/logement_*.jpg
+uploads/logements/logement_*.jpeg
+uploads/logements/logement_*.webp
 uploads/messages/message_*.png
+uploads/messages/message_*.jpg
+uploads/messages/message_*.jpeg
+uploads/messages/message_*.webp
+uploads/profiles/profile_*.png
+uploads/profiles/profile_*.jpg
+uploads/profiles/profile_*.jpeg
+uploads/profiles/profile_*.webp
