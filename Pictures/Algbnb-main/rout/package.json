@@ -1,0 +1,28 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "smoke:web": "node scripts/smokeWebFlow.mjs",
+    "qa:reset-geo": "node scripts/resetGeoQaData.mjs",
+    "qa:web-api": "node scripts/qaWebApiAudit.mjs",
+    "check:mvc": "node scripts/checkMvcBoundaries.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.5.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "nodemailer": "^7.0.5",
+    "pg": "^8.20.0"
+  }
+}
