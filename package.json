@@ -2,14 +2,17 @@
   "name": "algbnb-monorepo",
   "private": true,
   "scripts": {
-    "audit:web": "npm --prefix apps/web-view run audit:web",
-    "build": "npm --prefix apps/web-view run build",
-    "check:mvc": "npm --prefix rout run check:mvc",
-    "lint": "npm --prefix apps/web-view run lint",
-    "qa:web-api": "npm --prefix rout run qa:web-api"
+
+
+    "audit:web": "npm --prefix view/web run audit:web",
+    "build": "npm --prefix view/web run build",
+    "check:mvc": "npm --prefix controller/api run check:mvc",
+    "lint": "npm --prefix view/web run lint",
+    "qa:web-api": "npm --prefix controller/api run qa:web-api"
   },
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "controller/*",
+    "view/*"
+
   ]
 }
