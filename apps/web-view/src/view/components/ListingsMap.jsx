@@ -11,6 +11,25 @@ const escapeHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
+const mapStyle = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: 'OpenStreetMap',
+    },
+  },
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster',
+      source: 'osm',
+    },
+  ],
+};
+
 export const ListingsMap = ({ listings }) => {
   const navigate = useNavigate();
   const mapContainerRef = useRef(null);
@@ -18,13 +37,13 @@ export const ListingsMap = ({ listings }) => {
   const markersRef = useRef([]);
 
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current || !import.meta.env.VITE_MAPTILER_KEY) {
+    if (!mapContainerRef.current || mapRef.current) {
       return undefined;
     }
 
     mapRef.current = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${import.meta.env.VITE_MAPTILER_KEY}`,
+      style: mapStyle,
       center: [3.0588, 36.7538],
       zoom: 5.5,
       attributionControl: true,
@@ -50,11 +69,29 @@ export const ListingsMap = ({ listings }) => {
 
     const bounds = new maplibregl.LngLatBounds();
 
+    const duplicateCounts = new Map();
+    const duplicateIndexes = new Map();
     validListings.forEach((listing) => {
+      const key = `${Number(listing.lat).toFixed(6)},${Number(listing.lng).toFixed(6)}`;
+      duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
+    });
+
+    validListings.forEach((listing) => {
+      const key = `${Number(listing.lat).toFixed(6)},${Number(listing.lng).toFixed(6)}`;
+      const index = duplicateIndexes.get(key) || 0;
+      duplicateIndexes.set(key, index + 1);
+      const duplicateCount = duplicateCounts.get(key) || 1;
+      const angle = (index / duplicateCount) * Math.PI * 2;
+      const markerOffset = duplicateCount > 1
+        ? [Math.cos(angle) * 22, Math.sin(angle) * 22]
+        : [0, 0];
+
       const markerElement = document.createElement('button');
       markerElement.type = 'button';
       markerElement.className = 'listing-marker';
       markerElement.textContent = `${listing.prix} DZD`;
+      markerElement.setAttribute('aria-label', `Voir ${listing.titre || 'ce logement'} sur la carte`);
+      markerElement.title = listing.titre || 'Voir ce logement';
       markerElement.onclick = () => navigate(`/logement/${listing.id}`);
 
       const popup = new maplibregl.Popup({ offset: 20 }).setHTML(
@@ -67,7 +104,7 @@ export const ListingsMap = ({ listings }) => {
         `
       );
 
-      const marker = new maplibregl.Marker({ element: markerElement })
+      const marker = new maplibregl.Marker({ element: markerElement, offset: markerOffset })
         .setLngLat([listing.lng, listing.lat])
         .setPopup(popup)
         .addTo(map);
@@ -76,12 +113,8 @@ export const ListingsMap = ({ listings }) => {
       bounds.extend([listing.lng, listing.lat]);
     });
 
-    map.fitBounds(bounds, { padding: 50, maxZoom: 12 });
+    map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
   }, [listings, navigate]);
-
-  if (!import.meta.env.VITE_MAPTILER_KEY) {
-    return null;
-  }
 
   return <div ref={mapContainerRef} className="results-map" />;
 };

@@ -4,7 +4,7 @@ import { Eye, EyeOff, Lock, Mail, Phone, User } from 'lucide-react';
 import { authController } from '@algbnb/core';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
-import { auth, googleProvider } from '../../firebase';
+import { getFirebaseClientStatus } from '../../firebase';
 import { signInWithPopup } from 'firebase/auth';
 
 export const PageAuth = () => {
@@ -19,19 +19,60 @@ export const PageAuth = () => {
   const [resetSent, setResetSent] = useState(null);
   const [role, setRole] = useState('voyageur');
   const [error, setError] = useState('');
-  const [providers, setProviders] = useState({ google: false, facebook: false });
+  const [providers, setProviders] = useState({ google: false, facebook: false, google_backend_missing: [] });
+  const [providersLoading, setProvidersLoading] = useState(true);
+  const [firebaseStatus, setFirebaseStatus] = useState(() => getFirebaseClientStatus());
 
   const { login, register, loginWithGoogle, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    authController.getAuthProviders().then(setProviders).catch(() => null);
+    let active = true;
+
+    authController
+      .getAuthProviders()
+      .then((response) => {
+        if (!active) return;
+        setProviders({
+          google: Boolean(response.google),
+          facebook: Boolean(response.facebook),
+          google_backend_missing: Array.isArray(response.google_backend_missing) ? response.google_backend_missing : [],
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setProviders({ google: false, facebook: false, google_backend_missing: [] });
+      })
+      .finally(() => {
+        if (active) {
+          setProvidersLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleGoogleLogin = async () => {
     try {
       setError('');
-      const result = await signInWithPopup(auth, googleProvider);
+
+      const nextFirebaseStatus = getFirebaseClientStatus();
+      setFirebaseStatus(nextFirebaseStatus);
+
+      if (!nextFirebaseStatus.ready) {
+        throw new Error(nextFirebaseStatus.message);
+      }
+
+      if (!providers.google) {
+        const missingBackend = providers.google_backend_missing.length
+          ? ` Variables manquantes: ${providers.google_backend_missing.join(', ')}.`
+          : '';
+        throw new Error(`La connexion Google n est pas encore configuree cote serveur.${missingBackend}`);
+      }
+
+      const result = await signInWithPopup(nextFirebaseStatus.auth, nextFirebaseStatus.googleProvider);
       const idToken = await result.user.getIdToken();
       await loginWithGoogle(idToken, role);
       navigate('/');
@@ -82,6 +123,20 @@ export const PageAuth = () => {
       setError(submitError.message);
     }
   };
+
+  const googleStatusMessage = (() => {
+    if (providersLoading) return '';
+    if (!firebaseStatus.ready) return firebaseStatus.message;
+    if (!providers.google) {
+      const missingBackend = providers.google_backend_missing.length
+        ? ` Variables manquantes: ${providers.google_backend_missing.join(', ')}.`
+        : '';
+      return `La connexion Google n est pas encore configuree cote serveur.${missingBackend}`;
+    }
+    return '';
+  })();
+
+  const googleReady = !providersLoading && providers.google && firebaseStatus.ready;
 
   if (resetMode) {
     return (
@@ -490,8 +545,8 @@ export const PageAuth = () => {
               onClick={handleGoogleLogin}
               type="button"
               className="btn-outline"
-              disabled={!providers.google}
-              style={{ width: '100%', opacity: providers.google ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              disabled={!googleReady}
+              style={{ width: '100%', opacity: googleReady ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -499,7 +554,7 @@ export const PageAuth = () => {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              Continuer avec Google {providers.google ? '' : '(indisponible)'}
+              Continuer avec Google {googleReady ? '' : '(indisponible)'}
             </button>
             <button
               className="btn-outline"
@@ -509,6 +564,19 @@ export const PageAuth = () => {
               Continuer avec Facebook {providers.facebook ? '' : '(indisponible)'}
             </button>
           </div>
+
+          {googleStatusMessage ? (
+            <p
+              style={{
+                marginTop: 'var(--spacing-4)',
+                color: 'var(--on-surface-variant)',
+                fontSize: 'var(--body-sm)',
+                lineHeight: 1.5,
+              }}
+            >
+              {googleStatusMessage}
+            </p>
+          ) : null}
 
           {isLogin ? (
             <div style={{ marginTop: 'var(--spacing-6)', textAlign: 'center' }}>
@@ -542,13 +610,13 @@ export const PageAuth = () => {
           fontSize: 'var(--body-sm)',
         }}
       >
-        <Link to="#" className="footer-link">
+        <Link to="/confidentialite" className="footer-link">
           Confidentialite
         </Link>
-        <Link to="#" className="footer-link">
+        <Link to="/conditions" className="footer-link">
           Conditions
         </Link>
-        <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
+        <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
           Aide
         </Link>
       </footer>

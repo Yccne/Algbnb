@@ -190,13 +190,13 @@ export const PageResetPassword = () => {
           fontSize: 'var(--body-sm)',
         }}
       >
-        <Link to="#" className="footer-link">
+        <Link to="/confidentialite" className="footer-link">
           Confidentialite
         </Link>
-        <Link to="#" className="footer-link">
+        <Link to="/conditions" className="footer-link">
           Conditions
         </Link>
-        <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
+        <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
           Aide
         </Link>
       </footer>

@@ -253,16 +253,22 @@ input, textarea, select {
   color: var(--on-surface-variant);
 }
 
+.location-search-root {
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+.location-search-root-open {
+  z-index: 10000;
+}
+
 .location-suggestions {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  right: 0;
   background: var(--surface-lowest);
   border: 1px solid var(--surface-high);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-ambient);
-  z-index: 30;
+  z-index: 2147483647;
   max-height: 280px;
   overflow: auto;
 }
@@ -297,6 +303,15 @@ input, textarea, select {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-ambient);
+}
+
+.listing-location-picker {
+  width: 100%;
+  height: 360px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-ambient);
+  border: 1px solid var(--surface-high);
 }
 
 .listing-marker {

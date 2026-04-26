@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "smoke:web": "node scripts/smokeWebFlow.mjs"
+    "smoke:web": "node scripts/smokeWebFlow.mjs",
+    "qa:reset-geo": "node scripts/resetGeoQaData.mjs",
+    "qa:web-api": "node scripts/qaWebApiAudit.mjs",
+    "check:mvc": "node scripts/checkMvcBoundaries.mjs"
   },
   "keywords": [],
   "author": "",

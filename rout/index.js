@@ -13,8 +13,9 @@ const path = require('path');
 
 dotenv.config();
 
-const { checkDatabaseConnection } = require('./db');
-const { startReminderScheduler } = require('./utils/reminders');
+const healthService = require('./services/health.service');
+const { startReminderScheduler } = require('./services/reminders.service');
+const { errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
 
@@ -39,23 +40,7 @@ app.use('/api/avis', require('./routes/avis'));
 app.use('/api/favoris', require('./routes/favoris'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
-
-app.get('/api/health', async (req, res) => {
-  try {
-    const database = await checkDatabaseConnection();
-    res.json({
-      ok: true,
-      api: 'ready',
-      database,
-    });
-  } catch (error) {
-    res.status(500).json({
-      ok: false,
-      api: 'error',
-      error: error.message,
-    });
-  }
-});
+app.use('/api/health', require('./routes/health'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'API algbnb prete.' });
@@ -65,13 +50,7 @@ app.use((req, res) => {
   res.status(404).json({ erreur: 'Route introuvable.' });
 });
 
-app.use((error, req, res, next) => {
-  console.error('[server] middleware error:', error.message);
-  if (error.name === 'MulterError') {
-    return res.status(400).json({ erreur: error.message });
-  }
-  return res.status(500).json({ erreur: error.message || 'Erreur serveur.' });
-});
+app.use(errorHandler);
 
 const PORT = Number(process.env.PORT || 3001);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -79,8 +58,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 app.listen(PORT, HOST, async () => {
   console.log(`[server] API lancee sur http://${HOST}:${PORT}`);
   try {
-    const database = await checkDatabaseConnection();
-    console.log(`[server] PostgreSQL connecte sur la base ${database.database_name}`);
+    const health = await healthService.getHealth();
+    console.log(`[server] PostgreSQL connecte sur la base ${health.database.database_name}`);
     startReminderScheduler();
   } catch (error) {
     console.error('[server] Connexion PostgreSQL impossible:', error.message);

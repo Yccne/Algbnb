@@ -31,6 +31,11 @@ export const searchLogements = async (filters = {}) => {
   };
 };
 
+export const getMapLogements = async (filters = {}) => {
+  const data = await get('/logements/map', filters);
+  return (data || []).map(mapListing);
+};
+
 export const getLogementById = async (id) => {
   const data = await get(`/logements/${id}`);
   return mapListing(data);
@@ -65,3 +70,5 @@ export const togglePublication = async (id, est_actif) => {
 export const setDisponibilites = async (id, disponibilites) => put(`/annonces/${id}/disponibilites`, { disponibilites });
 export const getDisponibilites = async (id) => get(`/logements/${id}/disponibilites`);
 export const rechercherLieux = async (query) => get('/logements/location-search', { q: query });
+export const reverseLocation = async ({ latitude, longitude }) =>
+  get('/logements/reverse-location', { lat: latitude, lon: longitude });

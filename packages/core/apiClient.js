@@ -37,7 +37,12 @@ export const request = async (path, options = {}) => {
   const data = contentType.includes('application/json') ? await response.json() : await response.text();
 
   if (!response.ok) {
-    const message = data?.erreur || data?.message || 'Erreur API';
+    const message =
+      (Array.isArray(data?.erreurs) && data.erreurs.length > 0 ? data.erreurs.join('\n') : null) ||
+      data?.erreur ||
+      data?.message ||
+      (typeof data === 'string' && data.trim() ? data : null) ||
+      `Erreur API (${response.status})`;
     throw new Error(message);
   }
 

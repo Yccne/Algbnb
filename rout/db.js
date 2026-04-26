@@ -20,19 +20,8 @@ pool.on('error', (error) => {
   console.error('[db] Erreur PostgreSQL:', error.message);
 });
 
-async function checkDatabaseConnection() {
-  const client = await pool.connect();
-  try {
-    const result = await client.query('SELECT current_database() AS database_name, NOW() AS server_time');
-    return result.rows[0];
-  } finally {
-    client.release();
-  }
-}
-
 module.exports = {
   pool,
   query: (...args) => pool.query(...args),
   getClient: () => pool.connect(),
-  checkDatabaseConnection,
 };

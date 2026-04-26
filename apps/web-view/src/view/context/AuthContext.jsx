@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
 
         const refreshedUser = await authController.fetchCurrentUser();
         if (mounted) setUser(refreshedUser);
-      } catch (error) {
+      } catch {
         await authController.logout();
         if (mounted) setUser(null);
       } finally {

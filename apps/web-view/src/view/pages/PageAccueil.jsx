@@ -11,7 +11,7 @@ import { logementController } from '@algbnb/core';
 import { Navbar } from '../components/Navbar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { LogementCard } from '../components/LogementCard';
-import { LocationSearchInput } from '../components/LocationSearchInput';
+import { LocationSearchInput, normalizeSearchText } from '../components/LocationSearchInput';
 
 const categories = ['Appartement', 'Maison', 'Chambre', 'Villa', 'Chalet'];
 
@@ -19,7 +19,7 @@ export const PageAccueil = () => {
   const [logements, setLogements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [voyageurs, setVoyageurs] = useState(1);
+  const [voyageurs, setVoyageurs] = useState('');
   const [dateArrivee, setDateArrivee] = useState('');
   const [dateDepart, setDateDepart] = useState('');
   const navigate = useNavigate();
@@ -39,7 +39,8 @@ export const PageAccueil = () => {
   const handleSearch = (event) => {
     event.preventDefault();
     const params = new URLSearchParams();
-    if (search.trim()) params.set('search', search.trim());
+    const cleanSearch = normalizeSearchText(search);
+    if (cleanSearch) params.set('search', cleanSearch);
     if (voyageurs) params.set('voyageurs', voyageurs);
     if (dateArrivee) params.set('dateArrivee', dateArrivee);
     if (dateDepart) params.set('dateDepart', dateDepart);
@@ -105,7 +106,6 @@ export const PageAccueil = () => {
                 alignItems: 'center',
                 gap: 'var(--spacing-3)',
                 padding: 'var(--spacing-3) var(--spacing-4)',
-                borderRight: '1px solid var(--surface-high)',
               }}
             >
               <MapPin size={20} color="var(--primary)" />
@@ -113,7 +113,7 @@ export const PageAccueil = () => {
                 value={search}
                 onChange={setSearch}
                 onSelect={(suggestion) => {
-                  setSearch(suggestion.display_name || '');
+                  setSearch(suggestion.searchValue || suggestion.displayLabel || '');
                 }}
               />
             </div>
@@ -181,8 +181,9 @@ export const PageAccueil = () => {
               <input
                 type="number"
                 min="1"
+                placeholder="Voyageurs"
                 value={voyageurs}
-                onChange={(event) => setVoyageurs(Number(event.target.value || 1))}
+                onChange={(event) => setVoyageurs(event.target.value)}
                 style={{
                   border: 'none',
                   background: 'transparent',
@@ -196,6 +197,7 @@ export const PageAccueil = () => {
             <button
               type="submit"
               className="btn-primary"
+              aria-label="Rechercher"
               style={{ width: '48px', height: '48px', borderRadius: '50%', padding: 0, flexShrink: 0 }}
             >
               <Search size={20} />
@@ -303,16 +305,16 @@ export const PageAccueil = () => {
             fontSize: 'var(--body-sm)',
           }}
         >
-          <p>© 2026 algbnb.</p>
+          <p>2026 algbnb.</p>
           <div>
-            <Link to="#" className="footer-link">
-              A propos
+            <Link to="/confidentialite" className="footer-link">
+              Confidentialite
             </Link>
-            <Link to="#" className="footer-link">
+            <Link to="/conditions" className="footer-link">
+              Conditions
+            </Link>
+            <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
               Aide
-            </Link>
-            <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
-              Contact
             </Link>
           </div>
         </footer>

@@ -27,7 +27,7 @@ export const Navbar = () => {
         if (active) {
           setUnreadCount(summary.unread_count || 0);
         }
-      } catch (error) {
+      } catch {
         if (active) {
           setUnreadCount(0);
         }
@@ -130,7 +130,12 @@ export const Navbar = () => {
               </div>
               <span style={{ fontWeight: '600', fontSize: 'var(--body-sm)' }}>{user.nomComplet || [user.prenom, user.nom].filter(Boolean).join(' ')}</span>
             </Link>
-            <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', padding: 'var(--spacing-2)', borderRadius: '50%' }}>
+            <button
+              onClick={handleLogout}
+              aria-label="Se deconnecter"
+              title="Se deconnecter"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--on-surface-variant)', padding: 'var(--spacing-2)', borderRadius: '50%' }}
+            >
               <LogOut size={18} />
             </button>
           </>

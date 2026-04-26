@@ -1,48 +1,70 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { MapPinned, SlidersHorizontal } from 'lucide-react';
+import { MapPinned, Search, SlidersHorizontal } from 'lucide-react';
 import { logementController } from '@algbnb/core';
 import { Navbar } from '../components/Navbar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { LogementCard } from '../components/LogementCard';
 import { ListingsMap } from '../components/ListingsMap';
-import { LocationSearchInput } from '../components/LocationSearchInput';
+import { LocationSearchInput, normalizeSearchText } from '../components/LocationSearchInput';
 
 const availableEquipements = ['Wi-Fi', 'Cuisine equipee', 'Animaux acceptes', 'Piscine', 'Parking', 'Climatisation'];
+
+const readFilters = (searchParams) => ({
+  search: searchParams.get('search') || '',
+  type: searchParams.get('type') || '',
+  prixMin: searchParams.get('prixMin') || '',
+  prixMax: searchParams.get('prixMax') || '',
+  chambres: searchParams.get('chambres') || '',
+  lits: searchParams.get('lits') || '',
+  voyageurs: searchParams.get('voyageurs') || '',
+  dateArrivee: searchParams.get('dateArrivee') || '',
+  dateDepart: searchParams.get('dateDepart') || '',
+  sort: searchParams.get('sort') || '',
+  annulationGratuite: searchParams.get('annulationGratuite') === 'true',
+  bienNote: searchParams.get('bienNote') === 'true',
+  hoteVerifie: searchParams.get('hoteVerifie') === 'true',
+  equipements: searchParams.get('equipements') ? searchParams.get('equipements').split(',').filter(Boolean) : [],
+});
+
+const buildSearchParams = (filters) => {
+  const next = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      if (value.length > 0) next.set(key, value.join(','));
+      return;
+    }
+    if (typeof value === 'boolean') {
+      if (value) next.set(key, 'true');
+      return;
+    }
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      next.set(key, key === 'search' ? normalizeSearchText(value) : String(value).trim());
+    }
+  });
+  return next;
+};
 
 export const PageResultats = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [logements, setLogements] = useState([]);
+  const [mapLogements, setMapLogements] = useState([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMap, setLoadingMap] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [draftFilters, setDraftFilters] = useState(() => readFilters(searchParams));
   const sentinelRef = useRef(null);
 
-  const filters = useMemo(
-    () => ({
-      search: searchParams.get('search') || '',
-      type: searchParams.get('type') || '',
-      prixMin: searchParams.get('prixMin') || '',
-      prixMax: searchParams.get('prixMax') || '',
-      chambres: searchParams.get('chambres') || '',
-      lits: searchParams.get('lits') || '',
-      voyageurs: searchParams.get('voyageurs') || '',
-      dateArrivee: searchParams.get('dateArrivee') || '',
-      dateDepart: searchParams.get('dateDepart') || '',
-      sort: searchParams.get('sort') || '',
-      annulationGratuite: searchParams.get('annulationGratuite') === 'true',
-      bienNote: searchParams.get('bienNote') === 'true',
-      hoteVerifie: searchParams.get('hoteVerifie') === 'true',
-      equipements: searchParams.get('equipements') ? searchParams.get('equipements').split(',').filter(Boolean) : [],
-    }),
-    [searchParams]
-  );
+  const filters = useMemo(() => readFilters(searchParams), [searchParams]);
 
-  const filtersKey = useMemo(() => searchParams.toString(), [searchParams]);
+  useEffect(() => {
+    setDraftFilters(filters);
+  }, [filters]);
 
-  const fetchResults = async (offset = 0, append = false) => {
+  const fetchResults = useCallback(async (offset = 0, append = false) => {
     if (append) {
       setLoadingMore(true);
     } else {
@@ -66,11 +88,24 @@ export const PageResultats = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [filters]);
+
+  const fetchMapResults = useCallback(async () => {
+    setLoadingMap(true);
+    try {
+      const data = await logementController.getMapLogements(filters);
+      setMapLogements(data);
+    } catch {
+      setMapLogements([]);
+    } finally {
+      setLoadingMap(false);
+    }
+  }, [filters]);
 
   useEffect(() => {
     fetchResults(0, false);
-  }, [filtersKey]);
+    fetchMapResults();
+  }, [fetchMapResults, fetchResults]);
 
   useEffect(() => {
     if (!sentinelRef.current || !hasMore || loading || loadingMore) {
@@ -88,28 +123,37 @@ export const PageResultats = () => {
 
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMore, loading, loadingMore, logements.length, filtersKey]);
+  }, [fetchResults, hasMore, loading, loadingMore, logements.length]);
 
-  const updateFilter = (key, value) => {
-    const next = new URLSearchParams(searchParams);
-    if (!value || (Array.isArray(value) && value.length === 0)) {
-      next.delete(key);
-    } else {
-      next.set(key, Array.isArray(value) ? value.join(',') : String(value));
-    }
-    setSearchParams(next);
+  const updateDraftFilter = (key, value) => {
+    setDraftFilters((current) => ({ ...current, [key]: value }));
   };
 
   const toggleBooleanFilter = (key) => {
-    updateFilter(key, !filters[key]);
+    setDraftFilters((current) => ({ ...current, [key]: !current[key] }));
   };
 
   const toggleEquipement = (equipement) => {
-    const next = filters.equipements.includes(equipement)
-      ? filters.equipements.filter((item) => item !== equipement)
-      : [...filters.equipements, equipement];
-    updateFilter('equipements', next);
+    setDraftFilters((current) => ({
+      ...current,
+      equipements: current.equipements.includes(equipement)
+        ? current.equipements.filter((item) => item !== equipement)
+        : [...current.equipements, equipement],
+    }));
   };
+
+  const applyFilters = (event) => {
+    event.preventDefault();
+    setSearchParams(buildSearchParams(draftFilters));
+  };
+
+  const resetFilters = () => {
+    const emptyFilters = readFilters(new URLSearchParams());
+    setDraftFilters(emptyFilters);
+    setSearchParams(new URLSearchParams());
+  };
+
+  const mappedCount = mapLogements.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)).length;
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -125,7 +169,10 @@ export const PageResultats = () => {
             </p>
           </div>
 
-          <div style={{ backgroundColor: 'var(--surface-lowest)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-ambient)', padding: 'var(--spacing-5)', display: 'grid', gap: 'var(--spacing-4)' }}>
+          <form
+            onSubmit={applyFilters}
+            style={{ backgroundColor: 'var(--surface-lowest)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-ambient)', padding: 'var(--spacing-5)', display: 'grid', gap: 'var(--spacing-4)' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <MapPinned size={18} />
               <strong>Recherche et filtres</strong>
@@ -133,15 +180,15 @@ export const PageResultats = () => {
 
             <div className="results-filter-grid">
               <LocationSearchInput
-                value={filters.search}
-                onChange={(value) => updateFilter('search', value)}
-                onSelect={(suggestion) => updateFilter('search', suggestion.display_name || '')}
+                value={draftFilters.search}
+                onChange={(value) => updateDraftFilter('search', value)}
+                onSelect={(suggestion) => updateDraftFilter('search', suggestion.searchValue || suggestion.displayLabel || '')}
                 placeholder="Lieu"
               />
-              <input type="date" value={filters.dateArrivee} onChange={(event) => updateFilter('dateArrivee', event.target.value)} className="input-field" />
-              <input type="date" value={filters.dateDepart} onChange={(event) => updateFilter('dateDepart', event.target.value)} className="input-field" />
-              <input type="number" min="1" value={filters.voyageurs} onChange={(event) => updateFilter('voyageurs', event.target.value)} placeholder="Voyageurs" className="input-field" />
-              <select value={filters.type} onChange={(event) => updateFilter('type', event.target.value)} className="input-field">
+              <input type="date" value={draftFilters.dateArrivee} onChange={(event) => updateDraftFilter('dateArrivee', event.target.value)} className="input-field" />
+              <input type="date" value={draftFilters.dateDepart} onChange={(event) => updateDraftFilter('dateDepart', event.target.value)} className="input-field" />
+              <input type="number" min="1" value={draftFilters.voyageurs} onChange={(event) => updateDraftFilter('voyageurs', event.target.value)} placeholder="Voyageurs" className="input-field" />
+              <select value={draftFilters.type} onChange={(event) => updateDraftFilter('type', event.target.value)} className="input-field">
                 <option value="">Tous types</option>
                 <option value="appartement">Appartement</option>
                 <option value="maison">Maison</option>
@@ -149,17 +196,17 @@ export const PageResultats = () => {
                 <option value="villa">Villa</option>
                 <option value="chalet">Chalet</option>
               </select>
-              <select value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value)} className="input-field">
+              <select value={draftFilters.sort} onChange={(event) => updateDraftFilter('sort', event.target.value)} className="input-field">
                 <option value="">Pertinence / recents</option>
                 <option value="price_asc">Prix croissant</option>
                 <option value="price_desc">Prix decroissant</option>
                 <option value="rating_desc">Mieux notes</option>
                 <option value="recent">Plus recents</option>
               </select>
-              <input type="number" value={filters.prixMin} onChange={(event) => updateFilter('prixMin', event.target.value)} placeholder="Prix min" className="input-field" />
-              <input type="number" value={filters.prixMax} onChange={(event) => updateFilter('prixMax', event.target.value)} placeholder="Prix max" className="input-field" />
-              <input type="number" value={filters.chambres} onChange={(event) => updateFilter('chambres', event.target.value)} placeholder="Chambres min" className="input-field" />
-              <input type="number" value={filters.lits} onChange={(event) => updateFilter('lits', event.target.value)} placeholder="Lits min" className="input-field" />
+              <input type="number" value={draftFilters.prixMin} onChange={(event) => updateDraftFilter('prixMin', event.target.value)} placeholder="Prix min" className="input-field" />
+              <input type="number" value={draftFilters.prixMax} onChange={(event) => updateDraftFilter('prixMax', event.target.value)} placeholder="Prix max" className="input-field" />
+              <input type="number" value={draftFilters.chambres} onChange={(event) => updateDraftFilter('chambres', event.target.value)} placeholder="Chambres min" className="input-field" />
+              <input type="number" value={draftFilters.lits} onChange={(event) => updateDraftFilter('lits', event.target.value)} placeholder="Lits min" className="input-field" />
             </div>
 
             <div>
@@ -172,7 +219,7 @@ export const PageResultats = () => {
                   <button
                     key={equipement}
                     type="button"
-                    className={filters.equipements.includes(equipement) ? 'chip chip-active' : 'chip chip-default'}
+                    className={draftFilters.equipements.includes(equipement) ? 'chip chip-active' : 'chip chip-default'}
                     onClick={() => toggleEquipement(equipement)}
                   >
                     {equipement}
@@ -181,33 +228,41 @@ export const PageResultats = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
-              <button type="button" className={filters.annulationGratuite ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('annulationGratuite')}>
+            <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" className={draftFilters.annulationGratuite ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('annulationGratuite')}>
                 Annulation gratuite
               </button>
-              <button type="button" className={filters.bienNote ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('bienNote')}>
+              <button type="button" className={draftFilters.bienNote ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('bienNote')}>
                 Bien note
               </button>
-              <button type="button" className={filters.hoteVerifie ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('hoteVerifie')}>
+              <button type="button" className={draftFilters.hoteVerifie ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('hoteVerifie')}>
                 Hote verifie
               </button>
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setSearchParams(new URLSearchParams())}
+                onClick={resetFilters}
                 style={{ marginLeft: 'auto' }}
               >
                 Reinitialiser
               </button>
+              <button type="submit" className="btn-primary" aria-label="Rechercher les logements">
+                <Search size={18} /> Rechercher
+              </button>
             </div>
-          </div>
+          </form>
         </header>
 
-        {import.meta.env.VITE_MAPTILER_KEY ? (
-          <div style={{ marginBottom: 'var(--spacing-8)' }}>
-            <ListingsMap listings={logements} />
-          </div>
-        ) : null}
+        <div style={{ marginBottom: 'var(--spacing-8)' }}>
+          <ListingsMap listings={mapLogements} />
+          <p style={{ marginTop: 'var(--spacing-3)', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+            {loadingMap
+              ? 'Chargement de la carte...'
+              : mappedCount > 0
+                ? `${mappedCount} logement${mappedCount > 1 ? 's' : ''} affiche${mappedCount > 1 ? 's' : ''} sur la carte.`
+                : 'Aucun logement avec coordonnees a afficher sur la carte pour cette recherche.'}
+          </p>
+        </div>
 
         {error ? (
           <div style={{ marginBottom: 'var(--spacing-6)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(180, 35, 24, 0.08)', color: 'var(--error)', borderRadius: 'var(--radius-DEFAULT)' }}>
@@ -220,7 +275,7 @@ export const PageResultats = () => {
         ) : logements.length === 0 ? (
           <div style={{ padding: 'var(--spacing-10)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-lg)' }}>
             <h3 style={{ marginBottom: 'var(--spacing-2)' }}>Aucun resultat</h3>
-            <p style={{ color: 'var(--on-surface-variant)' }}>Ajuste les filtres ou cree de nouvelles annonces cote hote.</p>
+            <p style={{ color: 'var(--on-surface-variant)' }}>Essaie une ville plus simple, retire un filtre ou explore toutes les annonces disponibles.</p>
           </div>
         ) : (
           <>
@@ -246,13 +301,13 @@ export const PageResultats = () => {
       </div>
 
       <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginTop: 'auto' }}>
-        <Link to="#" className="footer-link">
+        <Link to="/confidentialite" className="footer-link">
           Confidentialite
         </Link>
-        <Link to="#" className="footer-link">
+        <Link to="/conditions" className="footer-link">
           Conditions
         </Link>
-        <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
+        <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
           Assistance
         </Link>
       </footer>

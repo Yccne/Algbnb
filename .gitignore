@@ -1,4 +1,8 @@
 node_modules
+*.log
 rout/.env
 apps/web-view/.env
 apps/mobile-view/.env
+uploads/logements/logement_*.png
+uploads/logements/logement_*.jpg
+uploads/messages/message_*.png

@@ -52,7 +52,7 @@ export const PageLogement = () => {
         if (active) {
           setIsFavorite(favoris.some((item) => String(item.id) === String(logement.id)));
         }
-      } catch (favoriteError) {
+      } catch {
         if (active) setIsFavorite(false);
       }
     };
@@ -242,7 +242,7 @@ export const PageLogement = () => {
               <Users size={18} /> {logement.voyageurs} voyageurs
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
-              <BedDouble size={18} /> {logement.chambres} chambres · {logement.lits} lits
+              <BedDouble size={18} /> {logement.chambres} chambres - {logement.lits} lits
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
               <Bath size={18} /> {logement.sallesDeBain} salle{logement.sallesDeBain > 1 ? 's' : ''} de bain
@@ -391,15 +391,15 @@ export const PageLogement = () => {
       </div>
 
       <footer style={{ borderTop: '1px solid rgba(190, 201, 195, 0.15)', padding: 'var(--spacing-8) var(--spacing-6)', display: 'flex', justifyContent: 'space-between', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', maxWidth: '1120px', margin: '0 auto' }}>
-        <p>© 2026 algbnb.</p>
+        <p>2026 algbnb.</p>
         <div>
-          <Link to="#" className="footer-link">
+          <Link to="/confidentialite" className="footer-link">
             Confidentialite
           </Link>
-          <Link to="#" className="footer-link">
+          <Link to="/conditions" className="footer-link">
             Conditions
           </Link>
-          <Link to="#" className="footer-link" style={{ marginRight: 0 }}>
+          <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
             Aide
           </Link>
         </div>

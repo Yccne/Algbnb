@@ -102,6 +102,7 @@ export const LogementCard = ({ logement, initialFavorite = false, onFavoriteChan
 
         <button
           onClick={handleToggleFavorite}
+          aria-label={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
           style={{
             position: 'absolute',
             top: 'var(--spacing-3)',
@@ -145,7 +146,7 @@ export const LogementCard = ({ logement, initialFavorite = false, onFavoriteChan
         <h3 style={{ fontSize: 'var(--body-md)', fontWeight: '700', lineHeight: 1.3, marginBottom: '4px' }}>{logement.titre}</h3>
         <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginBottom: 'var(--spacing-2)' }}>{logement.ville}</p>
         <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--label-sm)' }}>
-          {logement.type} · {logement.voyageurs || 1} voyageur{(logement.voyageurs || 1) > 1 ? 's' : ''}
+          {logement.type} - {logement.voyageurs || 1} voyageur{(logement.voyageurs || 1) > 1 ? 's' : ''}
         </p>
       </div>
     </Link>
