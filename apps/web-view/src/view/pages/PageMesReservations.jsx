@@ -169,9 +169,12 @@ export const PageMesReservations = () => {
           >
             Voyages
           </h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>
+          <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-6)' }}>
             Retrouve tes reservations, les statuts de sejour et les avis a laisser apres voyage.
           </p>
+          <button className="btn-primary" onClick={() => navigate('/')}>
+            Explorer les logements
+          </button>
         </header>
 
         {loading ? (
@@ -257,13 +260,7 @@ export const PageMesReservations = () => {
                 <p style={{ color: 'var(--on-surface-variant)' }}>
                   Quand tu reserves un logement, il apparait ici immediatement.
                 </p>
-                <button
-                  className="btn-primary"
-                  style={{ marginTop: 'var(--spacing-8)' }}
-                  onClick={() => navigate('/')}
-                >
-                  Explorer
-                </button>
+
               </div>
             ) : (
               <section style={{ display: 'grid', gap: 'var(--spacing-5)' }}>
