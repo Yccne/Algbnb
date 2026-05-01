@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ImagePlus, Send } from 'lucide-react';
 import { messagesController } from '@algbnb/controller-client';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,8 @@ export const PageMessages = () => {
   const { user } = useAuth();
   const location = useLocation();
   const requestedConversationId = location.state?.conversationId;
+  const fromLogementId = location.state?.fromLogementId;
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -296,7 +298,7 @@ export const PageMessages = () => {
               }}
             >
               <button
-                onClick={() => setSelectedConv(null)}
+                onClick={() => { if (fromLogementId) { navigate('/logement/' + fromLogementId); } else { setSelectedConv(null); } }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -451,3 +453,6 @@ export const PageMessages = () => {
     </div>
   );
 };
+
+
+

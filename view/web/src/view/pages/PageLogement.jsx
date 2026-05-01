@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -163,7 +163,7 @@ export const PageLogement = () => {
 
     try {
       const conversation = await messagesController.createConversation(logement.hote.id);
-      navigate('/messages', { state: { conversationId: conversation.id } });
+      navigate('/messages', { state: { conversationId: conversation.id, fromLogementId: id } });
     } catch (messageError) {
       setError(messageError.message);
     }
@@ -429,3 +429,4 @@ export const PageLogement = () => {
     </div>
   );
 };
+
