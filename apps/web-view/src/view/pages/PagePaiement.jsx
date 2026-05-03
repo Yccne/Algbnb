@@ -193,14 +193,55 @@ export const PageReservationConfirmation = () => {
             <p style={{ color: 'var(--on-surface-variant)', marginBottom: '32px', fontSize: '15px' }}>
               {requiresApproval ? "Demande envoyée. En attente de validation par l'hôte." : "Réservation confirmée. Bon séjour !"}
             </p>
-            <div style={{ background: 'rgba(15,110,86,0.07)', borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '32px', textAlign: 'left' }}>
-              {[['Référence', successData.reference], ['Montant', `${Number(successData.montant).toLocaleString('fr-DZ')} DZD`], ['Méthode', 'Carte Dahabiya (sandbox)']].map(([k, v]) => (
+
+            {/* Récapitulatif paiement */}
+            <div style={{ background: 'rgba(15,110,86,0.07)', borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '20px', textAlign: 'left' }}>
+              {[
+                ['Référence', successData.reference],
+                ['Montant', `${Number(successData.montant).toLocaleString('fr-DZ')} DZD`],
+                ['Méthode', 'Carte Dahabiya (sandbox)'],
+              ].map(([k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <span style={{ color: 'var(--on-surface-variant)', fontSize: '13px' }}>{k}</span>
                   <span style={{ fontWeight: '700', fontSize: '13px', fontFamily: k === 'Référence' ? 'monospace' : 'inherit', color: k === 'Montant' ? 'var(--primary)' : 'var(--on-surface)' }}>{v}</span>
                 </div>
               ))}
             </div>
+
+            {/* ===== MESSAGE CCP ===== */}
+            {logement.compte_ccp ? (
+              <div style={{
+                background: 'rgba(234,179,8,0.10)',
+                border: '1.5px solid rgba(234,179,8,0.4)',
+                borderRadius: 'var(--radius-md)',
+                padding: '18px 20px',
+                marginBottom: '28px',
+                textAlign: 'left',
+              }}>
+                <p style={{ fontSize: '13px', color: '#92400e', marginBottom: '10px', fontWeight: '600' }}>
+                  💳 Virement CCP requis
+                </p>
+                <p style={{ fontSize: '13px', color: '#92400e', marginBottom: '12px', lineHeight: '1.5' }}>
+                  Le montant de <strong>{Number(successData.montant).toLocaleString('fr-DZ')} DZD</strong> a été validé.
+                  Veuillez effectuer le virement sur le compte CCP de l'hôte :
+                </p>
+                <div style={{
+                  background: 'white',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  border: '1px solid rgba(234,179,8,0.3)',
+                }}>
+                  <span style={{ fontSize: '12px', color: '#92400e', fontWeight: '600' }}>N° CCP de l'hôte</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: '16px', fontWeight: '700', color: '#78350f', letterSpacing: '2px' }}>
+                    {logement.compte_ccp}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
             <button className="btn-primary" style={{ width: '100%', padding: '16px' }} onClick={() => navigate('/reservations')}>
               Voir mes réservations
             </button>

@@ -8,7 +8,7 @@ import { BottomNavBar } from '../components/BottomNavBar';
 const defaultAvatar = 'https://placehold.co/200x200?text=Profil';
 
 export const PageProfil = () => {
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile, savedCredentials, clearSavedCredentials } = useAuth();
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({});
   const [isEditing, setIsEditing] = useState(false);
@@ -134,6 +134,11 @@ export const PageProfil = () => {
               </section>
             )}
 
+            {savedCredentials && (
+              <button className="btn-outline" onClick={clearSavedCredentials} style={{ marginBottom: 'var(--spacing-2)' }}>
+                🔐 Oublier mes identifiants
+              </button>
+            )}
             <button className="btn-outline" onClick={logout} style={{ color: 'var(--error)' }}>
               Déconnexion
             </button>

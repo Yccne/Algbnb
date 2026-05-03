@@ -69,13 +69,13 @@ const createListing = async ({ ownerId, payload, photos, equipements }) => {
           id_hote, titre, description, type_logement, adresse, ville, pays,
           latitude, longitude, nb_chambres, nb_lits, nb_salles_de_bain,
           capacite_accueil, prix_par_nuit, mode_reservation, politique_annulation,
-          regles_maison, est_actif, validation_statut
+          regles_maison, compte_ccp, est_actif, validation_statut
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12,
           $13, $14, $15, $16,
-          $17, $18, $19
+          $17, $18, $19, $20
         )
         RETURNING *
       `,
@@ -97,6 +97,7 @@ const createListing = async ({ ownerId, payload, photos, equipements }) => {
         payload.mode_reservation || 'sur_approbation',
         payload.politique_annulation || 'moderee',
         payload.regles_maison || null,
+        payload.compte_ccp ? payload.compte_ccp.replace(/[\s-]/g, '') : null,
         payload.est_actif === 'false' ? false : Boolean(payload.est_actif ?? true),
         payload.validation_statut || 'valide',
       ]
@@ -132,10 +133,11 @@ const updateListing = async ({ listingId, payload, photos, equipements, replaceP
             mode_reservation = $14,
             politique_annulation = $15,
             regles_maison = $16,
-            validation_statut = $17,
-            est_actif = $18,
+            compte_ccp = $17,
+            validation_statut = $18,
+            est_actif = $19,
             date_mise_a_jour = NOW()
-        WHERE id = $19
+        WHERE id = $20
       `,
       [
         payload.titre,
@@ -154,6 +156,7 @@ const updateListing = async ({ listingId, payload, photos, equipements, replaceP
         payload.mode_reservation,
         payload.politique_annulation,
         payload.regles_maison || null,
+        payload.compte_ccp ? payload.compte_ccp.replace(/[\s-]/g, '') : null,
         payload.validation_statut,
         Boolean(payload.est_actif),
         listingId,

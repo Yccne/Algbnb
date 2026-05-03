@@ -57,6 +57,7 @@ const update = async ({ listingId, userId, payload: inputPayload, files = [] }) 
     mode_reservation: inputPayload.mode_reservation ?? listing.mode_reservation,
     politique_annulation: inputPayload.politique_annulation ?? listing.politique_annulation,
     regles_maison: inputPayload.regles_maison ?? listing.regles_maison,
+    compte_ccp: inputPayload.compte_ccp !== undefined ? inputPayload.compte_ccp : listing.compte_ccp,
     validation_statut: inputPayload.validation_statut ?? listing.validation_statut,
     est_actif: typeof inputPayload.est_actif === 'boolean' ? inputPayload.est_actif : listing.est_actif,
     equipements: inputPayload.equipements,

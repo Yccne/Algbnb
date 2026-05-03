@@ -24,6 +24,7 @@ const initialState = {
   mode_reservation: 'sur_approbation',
   politique_annulation: 'moderee',
   regles_maison: '',
+  compte_ccp: '',
   equipements: [],
   photos: [],
   photo_urls_text: '',
@@ -161,7 +162,6 @@ const ListingLocationMap = ({ latitude, longitude, center, onPick, onCenterChang
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
     map.flyTo({ center, zoom: 12, essential: true });
   }, [center]);
 
@@ -230,6 +230,9 @@ const validateAnnouncementForm = (form, { positionConfirmed, selectedLocation, g
   if ((!Array.isArray(form.photos) || form.photos.length === 0) && photoUrls.length === 0) {
     errors.push('Ajoute au moins une photo ou une URL de photo.');
   }
+  if (form.compte_ccp && !/^\d{10,20}$/.test(form.compte_ccp.replace(/[\s-]/g, ''))) {
+    errors.push('Le numero de compte CCP est invalide (chiffres uniquement, 10 a 20 caracteres).');
+  }
   if (!selectedLocation) {
     errors.push('Selectionne une adresse ou une ville dans la liste avant de placer le logement.');
   }
@@ -292,6 +295,7 @@ export const PageCreerAnnonce = () => {
           mode_reservation: annonce.mode_reservation || 'sur_approbation',
           politique_annulation: annonce.politique_annulation || 'moderee',
           regles_maison: annonce.regles_maison || '',
+          compte_ccp: annonce.compte_ccp || '',
           equipements: annonce.equipements || [],
           photos: [],
           photo_urls_text: Array.isArray(annonce.photos) ? annonce.photos.join(', ') : '',
@@ -453,7 +457,6 @@ export const PageCreerAnnonce = () => {
       setError('La date de fin doit etre egale ou posterieure a la date de debut.');
       return;
     }
-
     setDisponibilites((current) => [...current, { ...rangeDraft }]);
     setRangeDraft(emptyAvailabilityRange);
     setError('');
@@ -508,28 +511,10 @@ export const PageCreerAnnonce = () => {
 
   if (!canManageListings) {
     return (
-      <div
-        style={{
-          backgroundColor: 'var(--bg-main)',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+      <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Navbar />
-        <div
-          className="page-container"
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <div
-            style={{
-              maxWidth: '520px',
-              padding: 'var(--spacing-8)',
-              borderRadius: 'var(--radius-lg)',
-              backgroundColor: 'var(--surface-lowest)',
-              boxShadow: 'var(--shadow-ambient)',
-            }}
-          >
+        <div className="page-container" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ maxWidth: '520px', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-lg)', backgroundColor: 'var(--surface-lowest)', boxShadow: 'var(--shadow-ambient)' }}>
             <h1 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-3)' }}>
               Espace reserve aux hotes
             </h1>
@@ -553,79 +538,30 @@ export const PageCreerAnnonce = () => {
   }
 
   return (
-    <div
-      style={{
-        backgroundColor: 'var(--bg-main)',
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
-      <div
-        className="page-container"
-        style={{
-          flex: 1,
-          marginTop: 'var(--spacing-16)',
-          maxWidth: '860px',
-          paddingBottom: 'var(--spacing-16)',
-        }}
-      >
+      <div className="page-container" style={{ flex: 1, marginTop: 'var(--spacing-16)', maxWidth: '860px', paddingBottom: 'var(--spacing-16)' }}>
         <header style={{ marginBottom: 'var(--spacing-12)' }}>
-          <h1
-            style={{
-              fontSize: 'var(--display-md)',
-              letterSpacing: '-0.02em',
-              marginBottom: 'var(--spacing-4)',
-              lineHeight: 1.1,
-            }}
-          >
+          <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-4)', lineHeight: 1.1 }}>
             {editId ? 'Modifier votre logement' : 'Publier votre logement'}
           </h1>
           <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>
-            Renseigne les informations essentielles, les equipements, les photos et les dates
-            indisponibles.
+            Renseigne les informations essentielles, les equipements, les photos et les dates indisponibles.
           </p>
         </header>
 
         <form
           onSubmit={handleSubmit}
           noValidate
-          style={{
-            backgroundColor: 'var(--surface-lowest)',
-            padding: 'var(--spacing-8)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-ambient)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--spacing-8)',
-          }}
+          style={{ backgroundColor: 'var(--surface-lowest)', padding: 'var(--spacing-8)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-ambient)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-8)' }}
         >
+          {/* Informations generales */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Informations generales
-            </h2>
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Informations generales</h2>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
-              <input
-                value={form.titre}
-                onChange={(event) => updateField('titre', event.target.value)}
-                placeholder="Titre"
-                className="input-field"
-                required
-              />
-              <textarea
-                value={form.description}
-                onChange={(event) => updateField('description', event.target.value)}
-                placeholder="Description detaillee"
-                rows="5"
-                className="input-field"
-                required
-              />
-              <select
-                value={form.type_logement}
-                onChange={(event) => updateField('type_logement', event.target.value)}
-                className="input-field"
-              >
+              <input value={form.titre} onChange={(event) => updateField('titre', event.target.value)} placeholder="Titre" className="input-field" required />
+              <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} placeholder="Description detaillee" rows="5" className="input-field" required />
+              <select value={form.type_logement} onChange={(event) => updateField('type_logement', event.target.value)} className="input-field">
                 <option value="appartement">Appartement</option>
                 <option value="maison">Maison</option>
                 <option value="chambre">Chambre</option>
@@ -635,43 +571,16 @@ export const PageCreerAnnonce = () => {
             </div>
           </div>
 
+          {/* Adresse */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Adresse geolocalisee
-            </h2>
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Adresse geolocalisee</h2>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
-              <LocationSearchInput
-                value={locationSearch}
-                onChange={handleLocationSearchChange}
-                onSelect={handleLocationSelect}
-                placeholder="Rechercher une ville ou une adresse en Algerie"
-              />
-              <div
-                style={{
-                  padding: 'var(--spacing-4)',
-                  backgroundColor: 'var(--surface-low)',
-                  borderRadius: 'var(--radius-DEFAULT)',
-                  color: 'var(--on-surface-variant)',
-                  fontSize: 'var(--body-sm)',
-                }}
-              >
-                Selectionne d abord une proposition dans la liste, puis clique sur la carte pour placer exactement ton logement.
-                L adresse et la ville seront verifiees depuis le marqueur.
+              <LocationSearchInput value={locationSearch} onChange={handleLocationSearchChange} onSelect={handleLocationSelect} placeholder="Rechercher une ville ou une adresse en Algerie" />
+              <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-DEFAULT)', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+                Selectionne d abord une proposition dans la liste, puis clique sur la carte pour placer exactement ton logement. L adresse et la ville seront verifiees depuis le marqueur.
               </div>
-              <ListingLocationMap
-                latitude={form.latitude}
-                longitude={form.longitude}
-                center={mapCenter}
-                onPick={handleMapPick}
-                onCenterChange={setCurrentMapCenter}
-                disabled={geocoding}
-              />
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={placeMarkerAtMapCenter}
-                disabled={geocoding}
-              >
+              <ListingLocationMap latitude={form.latitude} longitude={form.longitude} center={mapCenter} onPick={handleMapPick} onCenterChange={setCurrentMapCenter} disabled={geocoding} />
+              <button type="button" className="btn-outline" onClick={placeMarkerAtMapCenter} disabled={geocoding}>
                 {geocoding ? 'Verification de la position...' : 'Placer le marqueur au centre de la carte'}
               </button>
               <p style={{ color: positionConfirmed ? 'var(--primary)' : 'var(--error)', fontSize: 'var(--body-sm)' }}>
@@ -681,262 +590,115 @@ export const PageCreerAnnonce = () => {
                     ? 'Position exacte obligatoire: clique sur la carte avant de publier.'
                     : 'Selectionne une proposition de lieu avant de placer le marqueur.'}
               </p>
-              {geoError ? (
-                <p style={{ color: 'var(--error)', fontSize: 'var(--body-sm)', marginTop: '-8px' }}>
-                  {geoError}
-                </p>
-              ) : null}
-              <input
-                value={form.adresse}
-                readOnly
-                placeholder="Adresse complete"
-                className="input-field"
-                required
-              />
-              <input
-                value={form.ville}
-                readOnly
-                placeholder="Ville"
-                className="input-field"
-                required
-              />
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: 'var(--spacing-4)',
-                }}
-              >
-                <input
-                  type="number"
-                  step="any"
-                  value={form.latitude}
-                  readOnly
-                  placeholder="Latitude generee par la carte"
-                  className="input-field"
-                />
-                <input
-                  type="number"
-                  step="any"
-                  value={form.longitude}
-                  readOnly
-                  placeholder="Longitude generee par la carte"
-                  className="input-field"
-                />
+              {geoError ? <p style={{ color: 'var(--error)', fontSize: 'var(--body-sm)', marginTop: '-8px' }}>{geoError}</p> : null}
+              <input value={form.adresse} readOnly placeholder="Adresse complete" className="input-field" required />
+              <input value={form.ville} readOnly placeholder="Ville" className="input-field" required />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--spacing-4)' }}>
+                <input type="number" step="any" value={form.latitude} readOnly placeholder="Latitude generee par la carte" className="input-field" />
+                <input type="number" step="any" value={form.longitude} readOnly placeholder="Longitude generee par la carte" className="input-field" />
               </div>
             </div>
           </div>
 
+          {/* Capacite et prix */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Capacite et prix
-            </h2>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: 'var(--spacing-4)',
-              }}
-            >
-              <input
-                type="number"
-                min="1"
-                value={form.capacite_accueil}
-                onChange={(event) => updateField('capacite_accueil', Number(event.target.value))}
-                placeholder="Capacite"
-                className="input-field"
-              />
-              <input
-                type="number"
-                min="0"
-                value={form.nb_chambres}
-                onChange={(event) => updateField('nb_chambres', Number(event.target.value))}
-                placeholder="Chambres"
-                className="input-field"
-              />
-              <input
-                type="number"
-                min="1"
-                value={form.nb_lits}
-                onChange={(event) => updateField('nb_lits', Number(event.target.value))}
-                placeholder="Lits"
-                className="input-field"
-              />
-              <input
-                type="number"
-                min="1"
-                value={form.nb_salles_de_bain}
-                onChange={(event) => updateField('nb_salles_de_bain', Number(event.target.value))}
-                placeholder="Salles de bain"
-                className="input-field"
-              />
-              <input
-                type="number"
-                min="1"
-                value={form.prix_par_nuit}
-                onChange={(event) => updateField('prix_par_nuit', Number(event.target.value))}
-                placeholder="Prix / nuit"
-                className="input-field"
-              />
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Capacite et prix</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--spacing-4)' }}>
+              <input type="number" min="1" value={form.capacite_accueil} onChange={(event) => updateField('capacite_accueil', Number(event.target.value))} placeholder="Capacite" className="input-field" />
+              <input type="number" min="0" value={form.nb_chambres} onChange={(event) => updateField('nb_chambres', Number(event.target.value))} placeholder="Chambres" className="input-field" />
+              <input type="number" min="1" value={form.nb_lits} onChange={(event) => updateField('nb_lits', Number(event.target.value))} placeholder="Lits" className="input-field" />
+              <input type="number" min="1" value={form.nb_salles_de_bain} onChange={(event) => updateField('nb_salles_de_bain', Number(event.target.value))} placeholder="Salles de bain" className="input-field" />
+              <input type="number" min="1" value={form.prix_par_nuit} onChange={(event) => updateField('prix_par_nuit', Number(event.target.value))} placeholder="Prix / nuit" className="input-field" />
             </div>
           </div>
 
+          {/* Regles et reservation */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Regles et reservation
-            </h2>
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Regles et reservation</h2>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
-              <select
-                value={form.mode_reservation}
-                onChange={(event) => updateField('mode_reservation', event.target.value)}
-                className="input-field"
-              >
+              <select value={form.mode_reservation} onChange={(event) => updateField('mode_reservation', event.target.value)} className="input-field">
                 <option value="sur_approbation">Sur approbation</option>
                 <option value="instantanee">Instantanee</option>
               </select>
-              <select
-                value={form.politique_annulation}
-                onChange={(event) => updateField('politique_annulation', event.target.value)}
-                className="input-field"
-              >
+              <select value={form.politique_annulation} onChange={(event) => updateField('politique_annulation', event.target.value)} className="input-field">
                 <option value="souple">Souple</option>
                 <option value="moderee">Moderee</option>
                 <option value="stricte">Stricte</option>
               </select>
-              <textarea
-                value={form.regles_maison}
-                onChange={(event) => updateField('regles_maison', event.target.value)}
-                placeholder="Regles de la maison"
-                rows="4"
-                className="input-field"
-              />
+              <textarea value={form.regles_maison} onChange={(event) => updateField('regles_maison', event.target.value)} placeholder="Regles de la maison" rows="4" className="input-field" />
             </div>
           </div>
 
+          {/* ===== COMPTE CCP ===== */}
           <div>
             <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Equipements
+              Paiement — Compte CCP
             </h2>
+            <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-DEFAULT)', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginBottom: 'var(--spacing-4)' }}>
+              Indique ton numero de compte CCP (Algerie Poste) pour recevoir les paiements des voyageurs.
+              Ce numero sera visible par les voyageurs lors de la reservation.
+            </div>
+            <input
+              type="text"
+              value={form.compte_ccp}
+              onChange={(event) => updateField('compte_ccp', event.target.value)}
+              placeholder="Ex: 1234567890 (numero CCP Algerie Poste)"
+              className="input-field"
+              maxLength={25}
+            />
+          </div>
+
+          {/* Equipements */}
+          <div>
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Equipements</h2>
             <div style={{ display: 'flex', gap: 'var(--spacing-4)', flexWrap: 'wrap' }}>
               {availableEquipements.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => toggleEquipement(item)}
-                  className={form.equipements.includes(item) ? 'btn-primary' : 'btn-outline'}
-                >
+                <button key={item} type="button" onClick={() => toggleEquipement(item)} className={form.equipements.includes(item) ? 'btn-primary' : 'btn-outline'}>
                   {item}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Photos */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Photos
-            </h2>
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Photos</h2>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(event) => updateField('photos', Array.from(event.target.files || []))}
-              />
-              <textarea
-                value={form.photo_urls_text}
-                onChange={(event) => updateField('photo_urls_text', event.target.value)}
-                placeholder="Ou colle des URLs d images separees par des virgules"
-                rows="3"
-                className="input-field"
-              />
+              <input type="file" accept="image/*" multiple onChange={(event) => updateField('photos', Array.from(event.target.files || []))} />
+              <textarea value={form.photo_urls_text} onChange={(event) => updateField('photo_urls_text', event.target.value)} placeholder="Ou colle des URLs d images separees par des virgules" rows="3" className="input-field" />
             </div>
           </div>
 
+          {/* Disponibilites */}
           <div>
-            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Disponibilites
-            </h2>
-            <div
-              style={{
-                display: 'grid',
-                gap: 'var(--spacing-4)',
-                padding: 'var(--spacing-5)',
-                borderRadius: 'var(--radius-DEFAULT)',
-                backgroundColor: 'var(--surface-low)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                  gap: 'var(--spacing-4)',
-                }}
-              >
-                <input
-                  type="date"
-                  value={rangeDraft.date_debut}
-                  onChange={(event) => setRangeDraft((current) => ({ ...current, date_debut: event.target.value }))}
-                  className="input-field"
-                />
-                <input
-                  type="date"
-                  value={rangeDraft.date_fin}
-                  onChange={(event) => setRangeDraft((current) => ({ ...current, date_fin: event.target.value }))}
-                  className="input-field"
-                />
-                <select
-                  value={rangeDraft.source_blocage}
-                  onChange={(event) =>
-                    setRangeDraft((current) => ({ ...current, source_blocage: event.target.value }))
-                  }
-                  className="input-field"
-                >
+            <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>Disponibilites</h2>
+            <div style={{ display: 'grid', gap: 'var(--spacing-4)', padding: 'var(--spacing-5)', borderRadius: 'var(--radius-DEFAULT)', backgroundColor: 'var(--surface-low)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--spacing-4)' }}>
+                <input type="date" value={rangeDraft.date_debut} onChange={(event) => setRangeDraft((current) => ({ ...current, date_debut: event.target.value }))} className="input-field" />
+                <input type="date" value={rangeDraft.date_fin} onChange={(event) => setRangeDraft((current) => ({ ...current, date_fin: event.target.value }))} className="input-field" />
+                <select value={rangeDraft.source_blocage} onChange={(event) => setRangeDraft((current) => ({ ...current, source_blocage: event.target.value }))} className="input-field">
                   <option value="manuel">Bloquer la date</option>
                   <option value="maintenance">Maintenance</option>
                 </select>
               </div>
-              <input
-                value={rangeDraft.note_interne}
-                onChange={(event) => setRangeDraft((current) => ({ ...current, note_interne: event.target.value }))}
-                placeholder="Note interne optionnelle"
-                className="input-field"
-              />
+              <input value={rangeDraft.note_interne} onChange={(event) => setRangeDraft((current) => ({ ...current, note_interne: event.target.value }))} placeholder="Note interne optionnelle" className="input-field" />
               <div>
                 <button type="button" className="btn-outline" onClick={addAvailabilityRange}>
                   Ajouter cette plage
                 </button>
               </div>
-
               {disponibilites.length > 0 ? (
                 <div style={{ display: 'grid', gap: 'var(--spacing-3)' }}>
                   {disponibilites.map((item, index) => (
-                    <div
-                      key={`${item.date_debut}-${item.date_fin}-${index}`}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 'var(--spacing-4)',
-                        alignItems: 'center',
-                        padding: 'var(--spacing-4)',
-                        borderRadius: 'var(--radius-DEFAULT)',
-                        backgroundColor: 'var(--surface-lowest)',
-                      }}
-                    >
+                    <div key={`${item.date_debut}-${item.date_fin}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--spacing-4)', alignItems: 'center', padding: 'var(--spacing-4)', borderRadius: 'var(--radius-DEFAULT)', backgroundColor: 'var(--surface-lowest)' }}>
                       <div>
-                        <div style={{ fontWeight: 700 }}>
-                          {item.date_debut} au {item.date_fin}
-                        </div>
+                        <div style={{ fontWeight: 700 }}>{item.date_debut} au {item.date_fin}</div>
                         <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
                           {item.source_blocage === 'maintenance' ? 'Maintenance' : 'Date bloquee'}
                           {item.note_interne ? ` - ${item.note_interne}` : ''}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="btn-ghost"
-                        onClick={() => removeAvailabilityRange(index)}
-                        style={{ color: 'var(--error)' }}
-                      >
+                      <button type="button" className="btn-ghost" onClick={() => removeAvailabilityRange(index)} style={{ color: 'var(--error)' }}>
                         Retirer
                       </button>
                     </div>
@@ -951,15 +713,7 @@ export const PageCreerAnnonce = () => {
           </div>
 
           {error ? (
-            <div
-              style={{
-                padding: 'var(--spacing-4)',
-                backgroundColor: 'rgba(180, 35, 24, 0.08)',
-                color: 'var(--error)',
-                borderRadius: 'var(--radius-DEFAULT)',
-                whiteSpace: 'pre-line',
-              }}
-            >
+            <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'rgba(180, 35, 24, 0.08)', color: 'var(--error)', borderRadius: 'var(--radius-DEFAULT)', whiteSpace: 'pre-line' }}>
               {error}
             </div>
           ) : null}
@@ -975,26 +729,11 @@ export const PageCreerAnnonce = () => {
         </form>
       </div>
 
-      <footer
-        style={{
-          padding: 'var(--spacing-6) 0',
-          borderTop: '1px solid var(--surface-high)',
-          textAlign: 'center',
-          color: 'var(--on-surface-variant)',
-          fontSize: 'var(--body-sm)',
-          marginTop: 'auto',
-        }}
-      >
+      <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginTop: 'auto' }}>
         <p style={{ marginBottom: 'var(--spacing-4)' }}>2026 algbnb</p>
-        <Link to="/confidentialite" className="footer-link">
-          Confidentialite
-        </Link>
-        <Link to="/conditions" className="footer-link">
-          Conditions
-        </Link>
-        <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>
-          Aide
-        </Link>
+        <Link to="/confidentialite" className="footer-link">Confidentialite</Link>
+        <Link to="/conditions" className="footer-link">Conditions</Link>
+        <Link to="/aide" className="footer-link" style={{ marginRight: 0 }}>Aide</Link>
       </footer>
     </div>
   );
