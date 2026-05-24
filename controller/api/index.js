@@ -40,6 +40,8 @@ app.use('/api/avis', require('./routes/avis'));
 app.use('/api/favoris', require('./routes/favoris'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/paiements', require('./routes/paiements'));
+app.use('/api/echanges', require('./routes/echanges'));
 app.use('/api/health', require('./routes/health'));
 
 app.get('/', (req, res) => {

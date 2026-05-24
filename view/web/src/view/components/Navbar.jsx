@@ -7,7 +7,7 @@ import { Bell, Calendar, Heart, LayoutDashboard, LogOut, Menu, MessageCircle, Sh
 const defaultAvatar = 'https://placehold.co/100x100?text=U';
 
 export const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, returnToAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -46,6 +46,12 @@ export const Navbar = () => {
     setMobileMenuOpen(false);
   };
 
+  const handleReturnToAdmin = async () => {
+    await returnToAdmin();
+    navigate('/admin');
+    setMobileMenuOpen(false);
+  };
+
   const isActive = (path) => location.pathname === path;
 
   const navLinkStyle = (path) => ({
@@ -62,6 +68,28 @@ export const Navbar = () => {
   });
 
   return (
+    <>
+    {user?.impersonation?.active ? (
+      <div
+        style={{
+          width: '100%',
+          background: '#0f6e56',
+          color: 'white',
+          padding: '10px 24px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '16px',
+          alignItems: 'center',
+          fontWeight: 700,
+          fontSize: 'var(--body-sm)',
+        }}
+      >
+        <span>Mode admin : connecté comme {user.nomComplet || [user.prenom, user.nom].filter(Boolean).join(' ') || `utilisateur #${user.id}`}</span>
+        <button className="btn-outline" onClick={handleReturnToAdmin} style={{ background: 'white', color: '#0f6e56', borderColor: 'white', padding: '6px 12px' }}>
+          Revenir à l'admin
+        </button>
+      </div>
+    ) : null}
     <nav
       className="glass-nav"
       style={{
@@ -91,7 +119,7 @@ export const Navbar = () => {
       <div style={{ display: 'none', gap: 'var(--spacing-3)', alignItems: 'center' }} className="desktop-controls">
         {user ? (
           <>
-            {(user.role_type === 'hote' || user.role_type === 'admin') && (
+            {user.role_type === 'hote' && (
               <Link to="/dashboard-hote" style={navLinkStyle('/dashboard-hote')}>
                 <LayoutDashboard size={16} /> Dashboard
               </Link>
@@ -185,9 +213,9 @@ export const Navbar = () => {
               <Link to="/profil" onClick={() => setMobileMenuOpen(false)} style={{ padding: 'var(--spacing-4)', fontSize: 'var(--title-lg)', fontWeight: '600' }}>
                 Mon profil
               </Link>
-              {(user.role_type === 'hote' || user.role_type === 'admin') && (
+              {user.role_type === 'hote' && (
                 <Link to="/dashboard-hote" onClick={() => setMobileMenuOpen(false)} style={{ padding: 'var(--spacing-4)', fontSize: 'var(--title-lg)', fontWeight: '600' }}>
-                  Dashboard hote
+                  Dashboard hôte
                 </Link>
               )}
               {user.role_type === 'admin' && (
@@ -253,5 +281,6 @@ export const Navbar = () => {
         }
       `}</style>
     </nav>
+    </>
   );
 };

@@ -93,17 +93,33 @@ const findAvailableListing = async (listingId) => {
   return result.rows[0] || null;
 };
 
-const hasReservationConflict = async ({ listingId, startDate, endDate }) => {
+const reservationConflictSql = ({ excludeReservationId = false } = {}) => `
+  SELECT 1
+  FROM reservation r
+  WHERE r.id_logement = $1
+    AND r.statut = ANY($2::text[])
+    ${excludeReservationId ? 'AND r.id <> $5' : ''}
+    AND NOT (r.date_depart <= $3 OR r.date_arrivee >= $4)
+  LIMIT 1
+`;
+
+const blockedAvailabilityConflictSql = `
+  SELECT 1
+  FROM disponibilite d
+  WHERE d.id_logement = $1
+    AND d.est_bloque = TRUE
+    AND NOT (d.date_fin < $2 OR d.date_debut >= $3)
+  LIMIT 1
+`;
+
+const hasReservationConflict = async ({ listingId, startDate, endDate, excludeReservationId }) => {
+  const params = [listingId, activeReservationStatuses, startDate, endDate];
+  if (excludeReservationId) params.push(excludeReservationId);
   const result = await database.query(
     `
-      SELECT 1
-      FROM reservation r
-      WHERE r.id_logement = $1
-        AND r.statut = ANY($2::text[])
-        AND NOT (r.date_depart <= $3 OR r.date_arrivee >= $4)
-      LIMIT 1
+      ${reservationConflictSql({ excludeReservationId: Boolean(excludeReservationId) })}
     `,
-    [listingId, activeReservationStatuses, startDate, endDate]
+    params
   );
   return result.rows.length > 0;
 };
@@ -111,20 +127,39 @@ const hasReservationConflict = async ({ listingId, startDate, endDate }) => {
 const hasBlockedAvailability = async ({ listingId, startDate, endDate }) => {
   const result = await database.query(
     `
-      SELECT 1
-      FROM disponibilite d
-      WHERE d.id_logement = $1
-        AND d.est_bloque = TRUE
-        AND NOT (d.date_fin < $2 OR d.date_debut >= $3)
-      LIMIT 1
+      ${blockedAvailabilityConflictSql}
     `,
     [listingId, startDate, endDate]
   );
   return result.rows.length > 0;
 };
 
+const createConflictError = (message) => {
+  const error = new Error(message);
+  error.code = 'RESERVATION_CONFLICT';
+  return error;
+};
+
 const createReservation = async ({ reservation, blockDates, notifications }) =>
   database.withTransaction(async (client) => {
+    await client.query('SELECT id FROM logement WHERE id = $1 FOR UPDATE', [reservation.listingId]);
+
+    const reservationConflict = await client.query(
+      reservationConflictSql(),
+      [reservation.listingId, activeReservationStatuses, reservation.startDate, reservation.endDate]
+    );
+    if (reservationConflict.rows.length > 0) {
+      throw createConflictError('Ce logement a deja une reservation sur cette periode.');
+    }
+
+    const blockConflict = await client.query(
+      blockedAvailabilityConflictSql,
+      [reservation.listingId, reservation.startDate, reservation.endDate]
+    );
+    if (blockConflict.rows.length > 0) {
+      throw createConflictError('Ces dates sont bloquees par l hote.');
+    }
+
     const result = await client.query(
       `
         INSERT INTO reservation (
@@ -205,7 +240,7 @@ const cancelReservation = async ({ reservation, status, reason }) =>
     const updated = await client.query(
       `
         UPDATE reservation
-        SET statut = $1, date_annulation = NOW(), motif_annulation = $2
+        SET statut = $1::text, date_annulation = NOW(), motif_annulation = $2
         WHERE id = $3
         RETURNING *
       `,
@@ -221,6 +256,16 @@ const cancelReservation = async ({ reservation, status, reason }) =>
           AND date_fin = $3
       `,
       [reservation.id_logement, reservation.date_arrivee, reservation.date_depart]
+    );
+
+    await client.query(
+      `
+        UPDATE paiement
+        SET statut = 'rembourse'
+        WHERE id_reservation = $1
+          AND statut = 'paye'
+      `,
+      [reservation.id]
     );
 
     return updated.rows[0];
@@ -248,9 +293,164 @@ const findReservationForStatus = async (reservationId) => {
   return result.rows[0] || null;
 };
 
+const findReservationForDispute = async (reservationId) => {
+  const result = await database.query(
+    `
+      SELECT
+        r.*,
+        l.id_hote,
+        l.titre,
+        l.ville,
+        h.email AS hote_email,
+        h.nom AS hote_nom,
+        h.prenom AS hote_prenom,
+        v.email AS voyageur_email,
+        v.nom AS voyageur_nom,
+        v.prenom AS voyageur_prenom
+      FROM reservation r
+      JOIN logement l ON l.id = r.id_logement
+      JOIN utilisateur h ON h.id = l.id_hote
+      JOIN utilisateur v ON v.id = r.id_voyageur
+      WHERE r.id = $1
+      LIMIT 1
+    `,
+    [reservationId]
+  );
+  return result.rows[0] || null;
+};
+
+const openDisputeConversation = async ({ reservation, openerId, initialMessage }) =>
+  database.withTransaction(async (client) => {
+    const adminResult = await client.query(
+      `
+        SELECT id, nom, prenom, email
+        FROM utilisateur
+        WHERE role_type = 'admin'
+          AND statut_compte = 'actif'
+        ORDER BY id ASC
+        LIMIT 1
+      `
+    );
+    const admin = adminResult.rows[0] || null;
+    if (!admin) {
+      const error = new Error('Aucun administrateur support actif n est disponible.');
+      error.code = 'SUPPORT_ADMIN_MISSING';
+      throw error;
+    }
+
+    const user1 = Math.min(Number(openerId), Number(admin.id));
+    const user2 = Math.max(Number(openerId), Number(admin.id));
+    const conversationResult = await client.query(
+      `
+        INSERT INTO conversation (id_utilisateur1, id_utilisateur2)
+        VALUES ($1, $2)
+        ON CONFLICT (id_utilisateur1, id_utilisateur2)
+        DO UPDATE SET date_mise_a_jour = conversation.date_mise_a_jour
+        RETURNING *
+      `,
+      [user1, user2]
+    );
+    const conversation = conversationResult.rows[0];
+
+    const existingResult = await client.query(
+      `
+        SELECT *
+        FROM litige
+        WHERE id_reservation = $1
+          AND id_ouverture = $2
+          AND statut IN ('ouvert', 'en_cours')
+        ORDER BY date_creation DESC
+        LIMIT 1
+      `,
+      [reservation.id, openerId]
+    );
+
+    const messageContent =
+      String(initialMessage || '').trim() ||
+      `Litige ouvert pour la reservation #${reservation.id} (${reservation.titre}).`;
+
+    let dispute = existingResult.rows[0] || null;
+    if (!dispute) {
+      const disputeResult = await client.query(
+        `
+          INSERT INTO litige (
+            id_reservation, id_ouverture, id_assigne, id_conversation,
+            sujet, description, statut, priorite
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, 'ouvert', 'normale')
+          RETURNING *
+        `,
+        [
+          reservation.id,
+          openerId,
+          admin.id,
+          conversation.id,
+          `Reservation #${reservation.id} - ${reservation.titre}`,
+          messageContent,
+        ]
+      );
+      dispute = disputeResult.rows[0];
+    } else if (!dispute.id_conversation) {
+      const updatedDispute = await client.query(
+        `
+          UPDATE litige
+          SET id_conversation = $1,
+              id_assigne = COALESCE(id_assigne, $2),
+              date_mise_a_jour = NOW()
+          WHERE id = $3
+          RETURNING *
+        `,
+        [conversation.id, admin.id, dispute.id]
+      );
+      dispute = updatedDispute.rows[0];
+    }
+
+    await client.query(
+      `
+        INSERT INTO message (id_conversation, id_expediteur, contenu)
+        VALUES ($1, $2, $3)
+      `,
+      [conversation.id, openerId, messageContent]
+    );
+    await client.query('UPDATE conversation SET date_mise_a_jour = NOW() WHERE id = $1', [conversation.id]);
+
+    await notificationsRepository.insertNotification(client, admin.id, 'litige', `Nouveau litige sur la reservation #${reservation.id}.`, {
+      reservationId: reservation.id,
+      litigeId: dispute.id,
+      conversationId: conversation.id,
+    });
+
+    return { dispute, conversation, admin };
+  });
+
 const updateStatus = async ({ reservation, status, notification }) =>
   database.withTransaction(async (client) => {
-    const updated = await client.query('UPDATE reservation SET statut = $1 WHERE id = $2 RETURNING *', [
+    await client.query('SELECT id FROM logement WHERE id = $1 FOR UPDATE', [reservation.logement_id]);
+    if (status === 'confirmee') {
+      const reservationConflict = await client.query(
+        reservationConflictSql({ excludeReservationId: true }),
+        [
+          reservation.logement_id,
+          activeReservationStatuses,
+          reservation.date_arrivee,
+          reservation.date_depart,
+          reservation.id,
+        ]
+      );
+      if (reservationConflict.rows.length > 0) {
+        throw createConflictError('Ce logement a deja une reservation sur cette periode.');
+      }
+
+      const blockConflict = await client.query(
+        blockedAvailabilityConflictSql,
+        [reservation.logement_id, reservation.date_arrivee, reservation.date_depart]
+      );
+      if (blockConflict.rows.length > 0) {
+        throw createConflictError('Ces dates sont bloquees par l hote.');
+      }
+    }
+
+    const updated = await client.query('UPDATE reservation SET statut = $1::text WHERE id = $2 RETURNING *', [
       status,
       reservation.id,
     ]);
@@ -279,6 +479,18 @@ const updateStatus = async ({ reservation, status, notification }) =>
       );
     }
 
+    if (['refusee', 'annulee_hote', 'annulee_voyageur', 'annulee_admin'].includes(status)) {
+      await client.query(
+        `
+          UPDATE paiement
+          SET statut = 'rembourse'
+          WHERE id_reservation = $1
+            AND statut = 'paye'
+        `,
+        [reservation.id]
+      );
+    }
+
     await notificationsRepository.insertNotification(
       client,
       notification.userId,
@@ -294,11 +506,13 @@ module.exports = {
   createReservation,
   findAvailableListing,
   findReservationForCancellation,
+  findReservationForDispute,
   findReservationForStatus,
   findUser,
   hasBlockedAvailability,
   hasReservationConflict,
   listByHost,
   listByTraveler,
+  openDisputeConversation,
   updateStatus,
 };

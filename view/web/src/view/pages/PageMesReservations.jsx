@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Clock3, MapPin, Star, Wallet } from 'lucide-react';
+import { Calendar, Clock3, Flag, MapPin, Star, Wallet } from 'lucide-react';
 import { avisController, reservationController } from '@algbnb/controller-client';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
@@ -8,15 +8,16 @@ import { BottomNavBar } from '../components/BottomNavBar';
 
 const fallbackImage = 'https://placehold.co/300x300?text=Reservation';
 
-const cancelledStatuses = ['annulee_hote', 'annulee_voyageur', 'refusee'];
+const cancelledStatuses = ['annulee_hote', 'annulee_voyageur', 'annulee_admin', 'refusee'];
 
 const statusLabel = {
   en_attente: 'En attente',
-  confirmee: 'Confirmee',
-  terminee: 'Terminee',
-  refusee: 'Refusee',
-  annulee_hote: 'Annulee par l hote',
-  annulee_voyageur: 'Annulee par le voyageur',
+  confirmee: 'Confirmée',
+  terminee: 'Terminée',
+  refusee: 'Refusée',
+  annulee_hote: "Annulée par l'hôte",
+  annulee_voyageur: 'Annulée par le voyageur',
+  annulee_admin: "Annulée par l'administration",
 };
 
 const emptyReview = {
@@ -33,6 +34,7 @@ export const PageMesReservations = () => {
   const [cancellingId, setCancellingId] = useState(null);
   const [reviewingId, setReviewingId] = useState(null);
   const [submittingReviewId, setSubmittingReviewId] = useState(null);
+  const [openingDisputeId, setOpeningDisputeId] = useState(null);
   const [reviewForms, setReviewForms] = useState({});
   const navigate = useNavigate();
 
@@ -146,6 +148,23 @@ export const PageMesReservations = () => {
     }
   };
 
+  const openDispute = async (event, reservation) => {
+    event.stopPropagation();
+    setOpeningDisputeId(reservation.id);
+    setError('');
+    try {
+      const result = await reservationController.ouvrirLitige(
+        reservation.id,
+        `Litige ouvert depuis la reservation #${reservation.id}.`
+      );
+      navigate('/messages', { state: { conversationId: result.conversationId } });
+    } catch (disputeError) {
+      setError(disputeError.message);
+    } finally {
+      setOpeningDisputeId(null);
+    }
+  };
+
   return (
     <div
       style={{
@@ -170,7 +189,7 @@ export const PageMesReservations = () => {
             Voyages
           </h1>
           <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-6)' }}>
-            Retrouve tes reservations, les statuts de sejour et les avis a laisser apres voyage.
+            Retrouve tes réservations, les statuts de séjour et les avis à laisser après voyage.
           </p>
           <button className="btn-primary" onClick={() => navigate('/')}>
             Explorer les logements
@@ -237,7 +256,7 @@ export const PageMesReservations = () => {
               </div>
               <div className="card" style={{ padding: 'var(--spacing-6)' }}>
                 <div style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-2)' }}>
-                  Annulees ou refusees
+                  Annulées ou refusées
                 </div>
                 <div style={{ fontSize: 'var(--headline-md)', fontWeight: 800 }}>{stats.cancelled}</div>
               </div>
@@ -255,10 +274,10 @@ export const PageMesReservations = () => {
                 }}
               >
                 <h3 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-                  Aucune reservation pour le moment
+                  Aucune réservation pour le moment
                 </h3>
                 <p style={{ color: 'var(--on-surface-variant)' }}>
-                  Quand tu reserves un logement, il apparait ici immediatement.
+                  Quand tu réserves un logement, il apparaît ici immédiatement.
                 </p>
 
               </div>
@@ -407,6 +426,16 @@ export const PageMesReservations = () => {
                             </button>
                           ) : null}
 
+                          {!cancelledStatuses.includes(reservation.statut) ? (
+                            <button
+                              className="btn-outline"
+                              onClick={(event) => openDispute(event, reservation)}
+                              disabled={openingDisputeId === reservation.id}
+                            >
+                              <Flag size={16} /> {openingDisputeId === reservation.id ? 'Ouverture...' : 'Ouvrir un litige'}
+                            </button>
+                          ) : null}
+
                           {canReview ? (
                             <button
                               className="btn-ghost"
@@ -460,7 +489,7 @@ export const PageMesReservations = () => {
                                 </select>
                               </label>
                               <label style={{ display: 'grid', gap: 'var(--spacing-2)' }}>
-                                <span>Note de l hote</span>
+                                <span>Note de l'hôte</span>
                                 <select
                                   className="input-field"
                                   value={review.note_hote}

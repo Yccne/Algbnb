@@ -35,6 +35,27 @@ const qaUsers = [
   },
 ];
 
+const qaPhotoSets = {
+  apartment: [
+    '/uploads/logements/demo/coastal-1.jpg',
+    '/uploads/logements/demo/coastal-2.jpg',
+    '/uploads/logements/demo/coastal-3.jpg',
+    '/uploads/logements/demo/coastal-4.jpg',
+  ],
+  house: [
+    '/uploads/logements/demo/family-1.jpg',
+    '/uploads/logements/demo/family-2.jpg',
+    '/uploads/logements/demo/family-3.jpg',
+    '/uploads/logements/demo/family-4.jpg',
+  ],
+  urban: [
+    '/uploads/logements/demo/urban-1.jpg',
+    '/uploads/logements/demo/urban-2.jpg',
+    '/uploads/logements/demo/urban-3.jpg',
+    '/uploads/logements/demo/urban-4.jpg',
+  ],
+};
+
 const qaListings = [
   {
     titre: '[QA GEO] Bejaia Centre Terrasse',
@@ -49,7 +70,7 @@ const qaListings = [
     nb_lits: 3,
     prix_par_nuit: 6500,
     mode_reservation: 'instantanee',
-    photo: 'https://placehold.co/1200x800?text=QA+Bejaia+Centre',
+    photos: qaPhotoSets.apartment,
   },
   {
     titre: '[QA GEO] Bejaia Ihaddaden Studio',
@@ -64,7 +85,7 @@ const qaListings = [
     nb_lits: 1,
     prix_par_nuit: 4800,
     mode_reservation: 'sur_approbation',
-    photo: 'https://placehold.co/1200x800?text=QA+Bejaia+Ihaddaden',
+    photos: qaPhotoSets.apartment,
   },
   {
     titre: '[QA GEO] Bejaia Sidi Ahmed Familial',
@@ -79,7 +100,7 @@ const qaListings = [
     nb_lits: 4,
     prix_par_nuit: 7200,
     mode_reservation: 'sur_approbation',
-    photo: 'https://placehold.co/1200x800?text=QA+Bejaia+Sidi+Ahmed',
+    photos: qaPhotoSets.house,
   },
   {
     titre: '[QA GEO] El Kseur Maison Jardin',
@@ -94,7 +115,7 @@ const qaListings = [
     nb_lits: 5,
     prix_par_nuit: 8000,
     mode_reservation: 'instantanee',
-    photo: 'https://placehold.co/1200x800?text=QA+El+Kseur',
+    photos: qaPhotoSets.house,
   },
   {
     titre: '[QA GEO] Alger Hydra Appartement',
@@ -109,7 +130,7 @@ const qaListings = [
     nb_lits: 2,
     prix_par_nuit: 9500,
     mode_reservation: 'instantanee',
-    photo: 'https://placehold.co/1200x800?text=QA+Alger+Hydra',
+    photos: qaPhotoSets.urban,
   },
   {
     titre: '[QA GEO] Alger Bab Ezzouar Loft',
@@ -124,7 +145,7 @@ const qaListings = [
     nb_lits: 1,
     prix_par_nuit: 6200,
     mode_reservation: 'sur_approbation',
-    photo: 'https://placehold.co/1200x800?text=QA+Alger+Bab+Ezzouar',
+    photos: qaPhotoSets.urban,
   },
   {
     titre: '[QA GEO] Oran Front De Mer',
@@ -139,7 +160,7 @@ const qaListings = [
     nb_lits: 3,
     prix_par_nuit: 7000,
     mode_reservation: 'instantanee',
-    photo: 'https://placehold.co/1200x800?text=QA+Oran',
+    photos: qaPhotoSets.apartment,
   },
   {
     titre: '[QA GEO] Constantine Centre',
@@ -154,7 +175,7 @@ const qaListings = [
     nb_lits: 2,
     prix_par_nuit: 6800,
     mode_reservation: 'sur_approbation',
-    photo: 'https://placehold.co/1200x800?text=QA+Constantine',
+    photos: qaPhotoSets.urban,
   },
   {
     titre: '[QA GEO] Setif Centre',
@@ -169,7 +190,7 @@ const qaListings = [
     nb_lits: 1,
     prix_par_nuit: 5200,
     mode_reservation: 'instantanee',
-    photo: 'https://placehold.co/1200x800?text=QA+Setif',
+    photos: qaPhotoSets.apartment,
   },
   {
     titre: '[QA GEO] Tizi Ouzou Centre',
@@ -184,7 +205,7 @@ const qaListings = [
     nb_lits: 3,
     prix_par_nuit: 6000,
     mode_reservation: 'sur_approbation',
-    photo: 'https://placehold.co/1200x800?text=QA+Tizi+Ouzou',
+    photos: qaPhotoSets.apartment,
   },
 ];
 
@@ -219,6 +240,23 @@ async function resetQaData(client) {
   );
   const reservationIds = ids(reservationResult.rows);
 
+  const exchangeResult = await client.query(
+    `
+      SELECT id
+      FROM echange_logement
+      WHERE ($1::bigint[] <> '{}'::bigint[] AND (
+              id_logement_demandeur = ANY($1::bigint[])
+           OR id_logement_receveur = ANY($1::bigint[])
+            ))
+         OR ($2::bigint[] <> '{}'::bigint[] AND (
+              id_hote_demandeur = ANY($2::bigint[])
+           OR id_hote_receveur = ANY($2::bigint[])
+            ))
+    `,
+    [listingIds, userIds]
+  );
+  const exchangeIds = ids(exchangeResult.rows);
+
   await client.query(
     `
       DELETE FROM litige
@@ -233,8 +271,13 @@ async function resetQaData(client) {
       WHERE ($1::bigint[] <> '{}'::bigint[] AND id_utilisateur = ANY($1::bigint[]))
          OR ($2::text[] <> '{}'::text[] AND meta ->> 'reservationId' = ANY($2::text[]))
          OR ($3::text[] <> '{}'::text[] AND meta ->> 'logementId' = ANY($3::text[]))
+         OR ($4::text[] <> '{}'::text[] AND meta ->> 'exchangeId' = ANY($4::text[]))
     `,
-    [userIds, reservationIds, listingIds]
+    [userIds, reservationIds, listingIds, exchangeIds]
+  );
+  await client.query(
+    "DELETE FROM echange_logement WHERE $1::bigint[] <> '{}'::bigint[] AND id = ANY($1::bigint[])",
+    [exchangeIds]
   );
   await client.query(
     `
@@ -274,6 +317,10 @@ async function resetQaData(client) {
     [listingIds]
   );
   await client.query(
+    "DELETE FROM logement_echange_preference WHERE $1::bigint[] <> '{}'::bigint[] AND id_logement = ANY($1::bigint[])",
+    [listingIds]
+  );
+  await client.query(
     "DELETE FROM logement WHERE $1::bigint[] <> '{}'::bigint[] AND id = ANY($1::bigint[])",
     [listingIds]
   );
@@ -298,6 +345,7 @@ async function resetQaData(client) {
     users: userIds.length,
     listings: listingIds.length,
     reservations: reservationIds.length,
+    exchanges: exchangeIds.length,
   };
 }
 
@@ -357,10 +405,13 @@ async function seedQaData(client) {
     const listingId = result.rows[0].id;
     listingIds.push(listingId);
 
-    await client.query(
-      'INSERT INTO logement_photo (id_logement, url_photo, ordre_affichage) VALUES ($1, $2, 0)',
-      [listingId, listing.photo]
-    );
+    const photos = Array.isArray(listing.photos) && listing.photos.length >= 4 ? listing.photos : qaPhotoSets.apartment;
+    for (let index = 0; index < photos.length; index += 1) {
+      await client.query(
+        'INSERT INTO logement_photo (id_logement, url_photo, ordre_affichage) VALUES ($1, $2, $3)',
+        [listingId, photos[index], index]
+      );
+    }
 
     for (const equipement of ['Wi-Fi', 'Cuisine equipee', 'Parking']) {
       await client.query(
@@ -381,7 +432,7 @@ async function main() {
   try {
     await client.query('BEGIN');
     const removed = await resetQaData(client);
-    const seeded = await seedQaData(client);
+    const seeded = process.env.NO_SEED_QA === '1' ? { users: 0, listings: 0 } : await seedQaData(client);
     await client.query('COMMIT');
     console.log(JSON.stringify({ removed, seeded }, null, 2));
   } catch (error) {

@@ -41,15 +41,19 @@ const listConversations = async (userId) => {
         u.nom AS interlocuteur_nom,
         u.prenom AS interlocuteur_prenom,
         u.photo_profil AS interlocuteur_photo,
-        last_message.contenu AS dernier_message,
-        last_message.photo_url AS derniere_photo,
+        CASE
+          WHEN last_message.id IS NULL THEN NULL
+          WHEN last_message.est_visible = TRUE THEN last_message.contenu
+          ELSE '[Message masque par la moderation]'
+        END AS dernier_message,
+        CASE WHEN last_message.est_visible = TRUE THEN last_message.photo_url ELSE NULL END AS derniere_photo,
         last_message.date_envoi AS dernier_message_date,
         COUNT(m_unread.id) AS nb_non_lus
       FROM conversation c
       JOIN utilisateur u
         ON u.id = CASE WHEN c.id_utilisateur1 = $1 THEN c.id_utilisateur2 ELSE c.id_utilisateur1 END
       LEFT JOIN LATERAL (
-        SELECT contenu, photo_url, date_envoi
+        SELECT id, contenu, photo_url, date_envoi, est_visible
         FROM message
         WHERE id_conversation = c.id
         ORDER BY date_envoi DESC
@@ -58,9 +62,10 @@ const listConversations = async (userId) => {
       LEFT JOIN message m_unread
         ON m_unread.id_conversation = c.id
        AND m_unread.est_lu = FALSE
+       AND m_unread.est_visible = TRUE
        AND m_unread.id_expediteur <> $1
       WHERE c.id_utilisateur1 = $1 OR c.id_utilisateur2 = $1
-      GROUP BY c.id, u.id, last_message.contenu, last_message.photo_url, last_message.date_envoi
+      GROUP BY c.id, u.id, last_message.id, last_message.contenu, last_message.photo_url, last_message.date_envoi, last_message.est_visible
       ORDER BY COALESCE(last_message.date_envoi, c.date_creation) DESC
     `,
     [userId]
@@ -85,7 +90,17 @@ const listMessages = async (conversationId) => {
   const result = await database.query(
     `
       SELECT
-        m.*,
+        m.id,
+        m.id_conversation,
+        m.id_expediteur,
+        CASE
+          WHEN m.est_visible = TRUE THEN m.contenu
+          ELSE '[Message masque par la moderation]'
+        END AS contenu,
+        CASE WHEN m.est_visible = TRUE THEN m.photo_url ELSE NULL END AS photo_url,
+        m.date_envoi,
+        m.est_lu,
+        m.est_visible,
         u.nom AS expediteur_nom,
         u.prenom AS expediteur_prenom,
         u.photo_profil AS expediteur_photo
@@ -97,6 +112,22 @@ const listMessages = async (conversationId) => {
     [conversationId]
   );
   return result.rows;
+};
+
+const updateVisibility = async ({ messageId, visible, moderatorId, note }) => {
+  const result = await database.query(
+    `
+      UPDATE message
+      SET est_visible = $1,
+          moderation_note = $2,
+          id_moderateur = $3,
+          date_moderation = NOW()
+      WHERE id = $4
+      RETURNING *
+    `,
+    [visible, note || null, moderatorId || null, messageId]
+  );
+  return result.rows[0] || null;
 };
 
 const findConversationByUsers = async ({ user1, user2 }) => {
@@ -166,4 +197,5 @@ module.exports = {
   markConversationRead,
   markMessageRead,
   normalizeConversationUsers,
+  updateVisibility,
 };

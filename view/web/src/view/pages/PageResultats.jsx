@@ -6,9 +6,16 @@ import { Navbar } from '../components/Navbar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { LogementCard } from '../components/LogementCard';
 import { ListingsMap } from '../components/ListingsMap';
-import { LocationSearchInput, normalizeSearchText } from '../components/LocationSearchInput';
+import { LocationSearchInput, getSuggestionGeoFilters, normalizeSearchText } from '../components/LocationSearchInput';
 
-const availableEquipements = ['Wi-Fi', 'Cuisine equipee', 'Animaux acceptes', 'Piscine', 'Parking', 'Climatisation'];
+const availableEquipements = [
+  { value: 'Wi-Fi', label: 'Wi-Fi' },
+  { value: 'Cuisine equipee', label: 'Cuisine équipée' },
+  { value: 'Animaux acceptes', label: 'Animaux acceptés' },
+  { value: 'Piscine', label: 'Piscine' },
+  { value: 'Parking', label: 'Parking' },
+  { value: 'Climatisation', label: 'Climatisation' },
+];
 
 const readFilters = (searchParams) => ({
   search: searchParams.get('search') || '',
@@ -21,6 +28,13 @@ const readFilters = (searchParams) => ({
   dateArrivee: searchParams.get('dateArrivee') || '',
   dateDepart: searchParams.get('dateDepart') || '',
   sort: searchParams.get('sort') || '',
+  placeLat: searchParams.get('placeLat') || '',
+  placeLng: searchParams.get('placeLng') || '',
+  placeMinLat: searchParams.get('placeMinLat') || '',
+  placeMaxLat: searchParams.get('placeMaxLat') || '',
+  placeMinLng: searchParams.get('placeMinLng') || '',
+  placeMaxLng: searchParams.get('placeMaxLng') || '',
+  placeLabel: searchParams.get('placeLabel') || '',
   annulationGratuite: searchParams.get('annulationGratuite') === 'true',
   bienNote: searchParams.get('bienNote') === 'true',
   hoteVerifie: searchParams.get('hoteVerifie') === 'true',
@@ -45,6 +59,45 @@ const buildSearchParams = (filters) => {
   return next;
 };
 
+const parseOptionalNumber = (value) => {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : NaN;
+};
+
+const validateSearchFilters = (filters) => {
+  const errors = {};
+  const prixMin = parseOptionalNumber(filters.prixMin);
+  const prixMax = parseOptionalNumber(filters.prixMax);
+  const voyageurs = parseOptionalNumber(filters.voyageurs);
+  const chambres = parseOptionalNumber(filters.chambres);
+  const lits = parseOptionalNumber(filters.lits);
+
+  if (Number.isNaN(prixMin) || prixMin < 0) {
+    errors.prix = 'Le prix minimum doit etre un nombre positif.';
+  } else if (Number.isNaN(prixMax) || prixMax < 0) {
+    errors.prix = 'Le prix maximum doit etre un nombre positif.';
+  } else if (prixMin !== null && prixMax !== null && prixMin > prixMax) {
+    errors.prix = 'Le prix maximum doit etre superieur au prix minimum.';
+  }
+
+  if (Number.isNaN(voyageurs) || (voyageurs !== null && voyageurs < 1)) {
+    errors.voyageurs = 'Le nombre de voyageurs doit etre au moins 1.';
+  }
+  if (Number.isNaN(chambres) || (chambres !== null && chambres < 0)) {
+    errors.chambres = 'Le nombre de chambres ne peut pas etre negatif.';
+  }
+  if (Number.isNaN(lits) || (lits !== null && lits < 0)) {
+    errors.lits = 'Le nombre de lits ne peut pas etre negatif.';
+  }
+
+  if (filters.dateArrivee && filters.dateDepart && filters.dateDepart <= filters.dateArrivee) {
+    errors.dates = 'La date de depart doit etre apres la date d arrivee.';
+  }
+
+  return errors;
+};
+
 export const PageResultats = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [logements, setLogements] = useState([]);
@@ -55,6 +108,7 @@ export const PageResultats = () => {
   const [loadingMap, setLoadingMap] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [filterErrors, setFilterErrors] = useState({});
   const [draftFilters, setDraftFilters] = useState(() => readFilters(searchParams));
   const sentinelRef = useRef(null);
 
@@ -62,14 +116,28 @@ export const PageResultats = () => {
 
   useEffect(() => {
     setDraftFilters(filters);
+    setFilterErrors(validateSearchFilters(filters));
   }, [filters]);
 
   const fetchResults = useCallback(async (offset = 0, append = false) => {
+    const nextErrors = validateSearchFilters(filters);
+    if (Object.keys(nextErrors).length > 0) {
+      setFilterErrors(nextErrors);
+      setLogements([]);
+      setTotal(0);
+      setHasMore(false);
+      setLoading(false);
+      setLoadingMore(false);
+      setError('');
+      return;
+    }
+
     if (append) {
       setLoadingMore(true);
     } else {
       setLoading(true);
       setError('');
+      setFilterErrors({});
     }
 
     try {
@@ -91,6 +159,13 @@ export const PageResultats = () => {
   }, [filters]);
 
   const fetchMapResults = useCallback(async () => {
+    const nextErrors = validateSearchFilters(filters);
+    if (Object.keys(nextErrors).length > 0) {
+      setMapLogements([]);
+      setLoadingMap(false);
+      return;
+    }
+
     setLoadingMap(true);
     try {
       const data = await logementController.getMapLogements(filters);
@@ -129,6 +204,28 @@ export const PageResultats = () => {
     setDraftFilters((current) => ({ ...current, [key]: value }));
   };
 
+  const updateDraftSearch = (value) => {
+    setDraftFilters((current) => ({
+      ...current,
+      search: value,
+      placeLat: '',
+      placeLng: '',
+      placeMinLat: '',
+      placeMaxLat: '',
+      placeMinLng: '',
+      placeMaxLng: '',
+      placeLabel: '',
+    }));
+  };
+
+  const selectDraftPlace = (suggestion) => {
+    const geoFilters = getSuggestionGeoFilters(suggestion);
+    setDraftFilters((current) => ({
+      ...current,
+      ...geoFilters,
+    }));
+  };
+
   const toggleBooleanFilter = (key) => {
     setDraftFilters((current) => ({ ...current, [key]: !current[key] }));
   };
@@ -144,6 +241,18 @@ export const PageResultats = () => {
 
   const applyFilters = (event) => {
     event.preventDefault();
+    const nextErrors = validateSearchFilters(draftFilters);
+    setFilterErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setLogements([]);
+      setMapLogements([]);
+      setTotal(0);
+      setHasMore(false);
+      setLoading(false);
+      setLoadingMap(false);
+      setError('');
+      return;
+    }
     setSearchParams(buildSearchParams(draftFilters));
   };
 
@@ -154,6 +263,7 @@ export const PageResultats = () => {
   };
 
   const mappedCount = mapLogements.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng)).length;
+  const filterErrorMessages = Object.values(filterErrors);
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -162,10 +272,10 @@ export const PageResultats = () => {
         <header style={{ display: 'grid', gap: 'var(--spacing-8)', marginBottom: 'var(--spacing-12)' }}>
           <div>
             <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-3)', lineHeight: 1.1 }}>
-              {loading ? 'Recherche en cours...' : `${total} logement${total > 1 ? 's' : ''} trouve${total > 1 ? 's' : ''}`}
+              {loading ? 'Recherche en cours...' : `${total} logement${total > 1 ? 's' : ''} trouvé${total > 1 ? 's' : ''}`}
             </h1>
             <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>
-              Affine tes resultats par lieu, dates, budget, equipements et qualite d hote.
+              Affine tes résultats par lieu, dates, budget, équipements et qualité d'hôte.
             </p>
           </div>
 
@@ -178,12 +288,29 @@ export const PageResultats = () => {
               <strong>Recherche et filtres</strong>
             </div>
 
+            {filterErrorMessages.length > 0 ? (
+              <div
+                style={{
+                  padding: 'var(--spacing-4)',
+                  backgroundColor: 'rgba(180, 35, 24, 0.08)',
+                  color: 'var(--error)',
+                  borderRadius: 'var(--radius-DEFAULT)',
+                  display: 'grid',
+                  gap: '4px',
+                }}
+              >
+                {filterErrorMessages.map((message) => (
+                  <span key={message}>{message}</span>
+                ))}
+              </div>
+            ) : null}
+
             <div className="results-filter-grid">
               <div className="filter-field filter-field-location">
                 <LocationSearchInput
                   value={draftFilters.search}
-                  onChange={(value) => updateDraftFilter('search', value)}
-                  onSelect={(suggestion) => updateDraftFilter('search', suggestion.searchValue || suggestion.displayLabel || '')}
+                  onChange={updateDraftSearch}
+                  onSelect={selectDraftPlace}
                   placeholder="Lieu"
                 />
               </div>
@@ -199,11 +326,11 @@ export const PageResultats = () => {
                 <option value="chalet">Chalet</option>
               </select>
               <select value={draftFilters.sort} onChange={(event) => updateDraftFilter('sort', event.target.value)} className="input-field filter-field filter-select">
-                <option value="">Pertinence / recents</option>
+                <option value="">Pertinence</option>
                 <option value="price_asc">Prix croissant</option>
-                <option value="price_desc">Prix decroissant</option>
-                <option value="rating_desc">Mieux notes</option>
-                <option value="recent">Plus recents</option>
+                <option value="price_desc">Prix décroissant</option>
+                <option value="rating_desc">Mieux notés</option>
+                <option value="recent">Plus récents</option>
               </select>
               <input type="number" value={draftFilters.prixMin} onChange={(event) => updateDraftFilter('prixMin', event.target.value)} placeholder="Prix min" className="input-field filter-field" />
               <input type="number" value={draftFilters.prixMax} onChange={(event) => updateDraftFilter('prixMax', event.target.value)} placeholder="Prix max" className="input-field filter-field" />
@@ -219,12 +346,12 @@ export const PageResultats = () => {
               <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
                 {availableEquipements.map((equipement) => (
                   <button
-                    key={equipement}
+                    key={equipement.value}
                     type="button"
-                    className={draftFilters.equipements.includes(equipement) ? 'chip chip-active' : 'chip chip-default'}
-                    onClick={() => toggleEquipement(equipement)}
+                    className={draftFilters.equipements.includes(equipement.value) ? 'chip chip-active' : 'chip chip-default'}
+                    onClick={() => toggleEquipement(equipement.value)}
                   >
-                    {equipement}
+                    {equipement.label}
                   </button>
                 ))}
               </div>
@@ -235,10 +362,10 @@ export const PageResultats = () => {
                 Annulation gratuite
               </button>
               <button type="button" className={draftFilters.bienNote ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('bienNote')}>
-                Bien note
+                Bien noté
               </button>
               <button type="button" className={draftFilters.hoteVerifie ? 'chip chip-active' : 'chip chip-default'} onClick={() => toggleBooleanFilter('hoteVerifie')}>
-                Hote verifie
+                Hôte vérifié
               </button>
               <button
                 type="button"
@@ -246,7 +373,7 @@ export const PageResultats = () => {
                 onClick={resetFilters}
                 style={{ marginLeft: 'auto' }}
               >
-                Reinitialiser
+                Réinitialiser
               </button>
               <button type="submit" className="btn-primary" aria-label="Rechercher les logements">
                 <Search size={18} /> Rechercher
@@ -261,8 +388,8 @@ export const PageResultats = () => {
             {loadingMap
               ? 'Chargement de la carte...'
               : mappedCount > 0
-                ? `${mappedCount} logement${mappedCount > 1 ? 's' : ''} affiche${mappedCount > 1 ? 's' : ''} sur la carte.`
-                : 'Aucun logement avec coordonnees a afficher sur la carte pour cette recherche.'}
+                ? `${mappedCount} logement${mappedCount > 1 ? 's' : ''} affiché${mappedCount > 1 ? 's' : ''} sur la carte.`
+                : 'Aucun logement avec coordonnées à afficher sur la carte pour cette recherche.'}
           </p>
         </div>
 
@@ -276,13 +403,13 @@ export const PageResultats = () => {
           <div className="spinner"></div>
         ) : logements.length === 0 ? (
           <div style={{ padding: 'var(--spacing-10)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ marginBottom: 'var(--spacing-2)' }}>Aucun resultat</h3>
+            <h3 style={{ marginBottom: 'var(--spacing-2)' }}>Aucun résultat</h3>
             <p style={{ color: 'var(--on-surface-variant)' }}>Essaie une ville plus simple, retire un filtre ou explore toutes les annonces disponibles.</p>
           </div>
         ) : (
           <>
             <div style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-5)' }}>
-              {logements.length} affiche(s) sur {total}
+              {logements.length} affiché(s) sur {total}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 'var(--spacing-8)', marginBottom: 'var(--spacing-10)' }}>
@@ -295,7 +422,7 @@ export const PageResultats = () => {
             {hasMore ? <div ref={sentinelRef} style={{ height: '12px' }} /> : null}
             {!hasMore ? (
               <div style={{ textAlign: 'center', color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-16)' }}>
-                Fin des resultats.
+                Fin des résultats.
               </div>
             ) : null}
           </>
@@ -304,7 +431,7 @@ export const PageResultats = () => {
 
       <footer style={{ padding: 'var(--spacing-6) 0', borderTop: '1px solid var(--surface-high)', textAlign: 'center', color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)', marginTop: 'auto' }}>
         <Link to="/confidentialite" className="footer-link">
-          Confidentialite
+          Confidentialité
         </Link>
         <Link to="/conditions" className="footer-link">
           Conditions

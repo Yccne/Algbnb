@@ -27,3 +27,5 @@ export const updateReservationStatus = async (id, statut) => {
   const data = await patch(`/reservations/${id}/statut`, { statut });
   return mapReservation(data);
 };
+
+export const ouvrirLitige = async (id, message) => post(`/reservations/${id}/litige`, { message });

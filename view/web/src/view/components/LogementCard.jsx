@@ -148,6 +148,11 @@ export const LogementCard = ({ logement, initialFavorite = false, onFavoriteChan
         <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--label-sm)' }}>
           {logement.type} - {logement.voyageurs || 1} voyageur{(logement.voyageurs || 1) > 1 ? 's' : ''}
         </p>
+        {logement.echange?.estOuvert ? (
+          <span className="badge badge-success" style={{ marginTop: 'var(--spacing-3)' }}>
+            Échange possible
+          </span>
+        ) : null}
       </div>
     </Link>
   );

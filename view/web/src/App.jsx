@@ -43,7 +43,7 @@ function App() {
           <Route path="/" element={<PageAccueil />} />
           <Route path="/resultats" element={<PageResultats />} />
           <Route path="/logement/:id" element={<PageLogement />} />
-          <Route path="/reservation/confirmation" element={<PageReservationConfirmation />} />
+          <Route path="/reservation/confirmation" element={<RouteGate roles={['voyageur']}><PageReservationConfirmation /></RouteGate>} />
           <Route path="/paiement" element={<Navigate to="/reservation/confirmation" replace />} />
           <Route path="/favoris" element={<RouteGate><PageFavoris /></RouteGate>} />
           <Route path="/reservations" element={<RouteGate><PageMesReservations /></RouteGate>} />
@@ -53,9 +53,9 @@ function App() {
           <Route path="/connexion" element={<PageAuth />} />
           <Route path="/inscription" element={<PageAuth />} />
           <Route path="/reset-password" element={<PageResetPassword />} />
-          <Route path="/dashboard-hote" element={<RouteGate roles={['hote', 'admin']}><PageDashboardHote /></RouteGate>} />
+          <Route path="/dashboard-hote" element={<RouteGate roles={['hote']}><PageDashboardHote /></RouteGate>} />
           <Route path="/admin" element={<RouteGate roles={['admin']}><PageAdmin /></RouteGate>} />
-          <Route path="/creer-annonce" element={<RouteGate roles={['hote', 'admin']}><PageCreerAnnonce /></RouteGate>} />
+          <Route path="/creer-annonce" element={<RouteGate roles={['hote']}><PageCreerAnnonce /></RouteGate>} />
           <Route path="/confidentialite" element={<PageInfo type="confidentialite" />} />
           <Route path="/conditions" element={<PageInfo type="conditions" />} />
           <Route path="/aide" element={<PageInfo type="aide" />} />

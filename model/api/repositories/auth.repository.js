@@ -1,7 +1,7 @@
 const database = require('./database.repository');
 
 const isUniqueViolation = (error) => error.code === '23505';
-const socialProviders = ['google', 'facebook'];
+const socialProviders = ['google'];
 
 const assertSocialProvider = (provider) => {
   if (!socialProviders.includes(provider)) {

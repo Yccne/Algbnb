@@ -13,12 +13,12 @@ Derniere passe automatisee: 26 avril 2026.
 ## Scenarios Couverts
 
 - Healthcheck API et connexion PostgreSQL.
-- Auth inscription, doublon, connexion, providers Google/Facebook et reset password.
+- Auth inscription, doublon, connexion, provider Google et reset password.
 - Recherche publique, carte, detail logement et disponibilites.
 - Creation annonce hote avec validation front/back et coherence geographique.
-- Favoris, reservations sans paiement, confirmation hote et avis.
+- Favoris, reservations, paiement Dahabiya sandbox, confirmation hote et avis.
 - Messages, notifications, dashboard hote et admin.
-- Verification explicite qu aucune ligne `paiement` n est creee par les parcours QA.
+- Verification explicite qu une ligne `paiement` est creee par le parcours QA Dahabiya.
 
 ## Donnees QA
 

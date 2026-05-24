@@ -2,18 +2,20 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/auth.config');
 
-const signToken = (user) =>
+const signToken = (user, options = {}) =>
   jwt.sign(
     {
       id: user.id,
       role: user.role_type,
       email: user.email,
+      impersonatedByAdminId: options.impersonatedByAdminId || undefined,
+      originalAdminId: options.originalAdminId || undefined,
     },
     jwtSecret,
     { expiresIn: '7d' }
   );
 
-const sanitizeUser = (user) => ({
+const sanitizeUser = (user, meta = {}) => ({
   id: user.id,
   nom: user.nom,
   prenom: user.prenom,
@@ -27,6 +29,7 @@ const sanitizeUser = (user) => ({
   statut_compte: user.statut_compte,
   provider_source: user.provider_source,
   date_inscription: user.date_inscription,
+  impersonation: meta.impersonation || null,
 });
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');

@@ -13,6 +13,9 @@ const create = async ({ userId, payload }) => {
   if (String(reservation.id_voyageur) !== String(userId)) {
     throw forbidden('Seul le voyageur concerne peut laisser un avis.');
   }
+  if (reservation.statut !== 'terminee') {
+    throw conflict('Un avis peut etre laisse uniquement apres un sejour termine.');
+  }
 
   try {
     return await avisRepository.create({

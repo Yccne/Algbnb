@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { getMapStyle, installMapStyleFallback, mapLibreFrenchLocale } from '../utils/mapStyle';
 
 const escapeHtml = (value) =>
   String(value)
@@ -10,25 +11,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-
-const mapStyle = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: 'OpenStreetMap',
-    },
-  },
-  layers: [
-    {
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-    },
-  ],
-};
 
 export const ListingsMap = ({ listings }) => {
   const navigate = useNavigate();
@@ -41,18 +23,22 @@ export const ListingsMap = ({ listings }) => {
       return undefined;
     }
 
-    mapRef.current = new maplibregl.Map({
+    const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: mapStyle,
+      style: getMapStyle(),
       center: [3.0588, 36.7538],
       zoom: 5.5,
       attributionControl: true,
+      locale: mapLibreFrenchLocale,
     });
 
-    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+    mapRef.current = map;
+    const removeMapFallback = installMapStyleFallback(map);
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     return () => {
-      mapRef.current?.remove();
+      removeMapFallback();
+      map.remove();
       mapRef.current = null;
     };
   }, []);

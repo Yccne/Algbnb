@@ -12,7 +12,7 @@ const getStats = async (userId) => {
     `
       SELECT
         COUNT(DISTINCT vf.id_logement) AS nb_favoris,
-        COUNT(DISTINCT r.id) FILTER (WHERE r.statut NOT IN ('annulee_voyageur', 'annulee_hote', 'refusee')) AS nb_reservations,
+        COUNT(DISTINCT r.id) FILTER (WHERE r.statut NOT IN ('annulee_voyageur', 'annulee_hote', 'annulee_admin', 'refusee')) AS nb_reservations,
         COUNT(DISTINCT l.id) AS nb_annonces
       FROM utilisateur u
       LEFT JOIN voyageur_favori vf ON vf.id_voyageur = u.id

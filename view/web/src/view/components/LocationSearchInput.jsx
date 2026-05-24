@@ -24,13 +24,58 @@ const getSuggestionSearchValue = (suggestion) => {
   );
 };
 
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const expandBounds = (lat, lng, minDelta = 0.04) => ({
+  placeMinLat: (lat - minDelta).toFixed(7),
+  placeMaxLat: (lat + minDelta).toFixed(7),
+  placeMinLng: (lng - minDelta).toFixed(7),
+  placeMaxLng: (lng + minDelta).toFixed(7),
+});
+
+export const getSuggestionGeoFilters = (suggestion) => {
+  const lat = toNumber(suggestion?.lat);
+  const lng = toNumber(suggestion?.lon ?? suggestion?.lng);
+  const searchValue = getSuggestionSearchValue(suggestion);
+  const displayLabel = suggestion?.display_name || searchValue;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return {
+      search: searchValue || normalizeSearchText(displayLabel),
+      placeLabel: displayLabel || '',
+    };
+  }
+
+  const bbox = Array.isArray(suggestion?.boundingbox) ? suggestion.boundingbox.map(toNumber) : [];
+  const hasBbox = bbox.length >= 4 && bbox.slice(0, 4).every(Number.isFinite);
+  const bounds = hasBbox
+    ? {
+        placeMinLat: Math.min(bbox[0], bbox[1]).toFixed(7),
+        placeMaxLat: Math.max(bbox[0], bbox[1]).toFixed(7),
+        placeMinLng: Math.min(bbox[2], bbox[3]).toFixed(7),
+        placeMaxLng: Math.max(bbox[2], bbox[3]).toFixed(7),
+      }
+    : expandBounds(lat, lng);
+
+  return {
+    search: searchValue || normalizeSearchText(displayLabel),
+    placeLat: lat.toFixed(7),
+    placeLng: lng.toFixed(7),
+    placeLabel: displayLabel || searchValue || '',
+    ...bounds,
+  };
+};
+
 export const LocationSearchInput = ({ value, onChange, onSelect, placeholder = 'Ville, adresse ou titre' }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState(null);
   const rootRef = useRef(null);
   const dropdownRef = useRef(null);
-  const isOpen = loading || suggestions.length > 0;
+  const isOpen = isFocused && (loading || suggestions.length > 0);
 
   const updateDropdownPosition = useCallback(() => {
     const rect = rootRef.current?.getBoundingClientRect();
@@ -97,6 +142,7 @@ export const LocationSearchInput = ({ value, onChange, onSelect, placeholder = '
         return;
       }
       setSuggestions([]);
+      setIsFocused(false);
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -123,7 +169,7 @@ export const LocationSearchInput = ({ value, onChange, onSelect, placeholder = '
               const displayLabel = suggestion.display_name || searchValue;
               return (
                 <button
-                  key={suggestion.place_id}
+                  key={suggestion.place_id || `${displayLabel}-${suggestion.lat}-${suggestion.lon}`}
                   type="button"
                   className="location-suggestion-item"
                   onClick={() => {
@@ -149,7 +195,13 @@ export const LocationSearchInput = ({ value, onChange, onSelect, placeholder = '
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        onFocus={updateDropdownPosition}
+        onFocus={() => {
+          setIsFocused(true);
+          updateDropdownPosition();
+        }}
+        onBlur={() => {
+          window.setTimeout(() => setIsFocused(false), 150);
+        }}
         style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: 'var(--body-md)', color: 'var(--on-surface)' }}
       />
       {dropdown}

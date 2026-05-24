@@ -13,10 +13,6 @@ const google = asyncController(async (req, res) => {
   res.json(await authService.loginWithGoogle(req.body));
 });
 
-const facebook = asyncController(async (req, res) => {
-  res.json(await authService.loginWithFacebook(req.body));
-});
-
 const forgotPassword = asyncController(async (req, res) => {
   const clientUrl = (process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
   res.json(await authService.forgotPassword(req.body, clientUrl));
@@ -27,7 +23,7 @@ const resetPassword = asyncController(async (req, res) => {
 });
 
 const me = asyncController(async (req, res) => {
-  res.json(await authService.getMe(req.user.id));
+  res.json(await authService.getMe(req.user));
 });
 
 const providers = (req, res) => {
@@ -36,7 +32,6 @@ const providers = (req, res) => {
 
 module.exports = {
   forgotPassword,
-  facebook,
   google,
   login,
   me,

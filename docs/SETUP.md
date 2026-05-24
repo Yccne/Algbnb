@@ -4,7 +4,7 @@
 
 - Node.js 18+
 - PostgreSQL 12+
-- Un projet Firebase si Google/Facebook Auth doit etre teste
+- Un projet Firebase si Google Auth doit etre teste
 
 ## Backend
 
@@ -53,6 +53,7 @@ copy view\web\.env.example view\web\.env
 ```env
 VITE_API_URL=http://127.0.0.1:3001/api
 VITE_LOCATIONIQ_KEY=replace_me
+VITE_MAPTILER_KEY=replace_me
 ```
 
 3. Lancer Vite:
@@ -63,18 +64,16 @@ npm.cmd --prefix view/web run dev -- --host 0.0.0.0
 
 Le front doit repondre sur `http://127.0.0.1:5173`.
 
-## Google/Facebook Auth Firebase
+## Google Auth Firebase
 
 1. Creer un projet Firebase.
 2. Activer `Authentication > Sign-in method > Google`.
-3. Activer `Authentication > Sign-in method > Facebook`.
-4. Dans Firebase Console, renseigner l App ID et l App Secret Meta pour Facebook.
-5. Creer une application Web Firebase.
-6. Copier les variables client dans `view/web/.env`.
-7. Generer une cle Admin SDK.
-8. Copier `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` et `FIREBASE_PRIVATE_KEY` dans `controller/api/.env`.
+3. Creer une application Web Firebase.
+4. Copier les variables client dans `view/web/.env`.
+5. Generer une cle Admin SDK.
+6. Copier `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` et `FIREBASE_PRIVATE_KEY` dans `controller/api/.env`.
 
-Sans ces variables, le site doit continuer a fonctionner: seules les actions Google/Facebook sont desactivees avec un message clair.
+Sans ces variables, le site doit continuer a fonctionner: seule l'action Google est desactivee avec un message clair.
 
 ## Commandes De Validation
 
@@ -92,5 +91,5 @@ npm.cmd run build
 
 - PostgreSQL refuse la connexion: verifier le service PostgreSQL et `PGPASSWORD`.
 - Google Auth indisponible: verifier les variables Firebase front et Admin backend.
-- La carte/recherche ne geocode pas: verifier `LOCATIONIQ_KEY`.
+- La carte/recherche ne geocode pas: verifier `LOCATIONIQ_KEY`, `VITE_LOCATIONIQ_KEY` et `VITE_MAPTILER_KEY`.
 - Le front appelle la mauvaise URL: verifier que `VITE_API_URL` finit par `/api`.

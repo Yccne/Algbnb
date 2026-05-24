@@ -94,7 +94,7 @@ export const PageMessages = () => {
     const interval = setInterval(() => {
       loadMessages(selectedConv).catch(() => {});
       loadConversations().catch(() => {});
-    }, 8000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [selectedConv, user, loadMessages, loadConversations]);
@@ -183,7 +183,7 @@ export const PageMessages = () => {
                   fontSize: 'var(--headline-md)',
                 }}
               >
-                Chat entre voyageurs et hotes avec texte, photos et notifications.
+                Chat entre voyageurs et hôtes avec texte, photos et notifications.
               </p>
             </header>
 
@@ -272,7 +272,7 @@ export const PageMessages = () => {
                       }}
                     >
                       {conversation.dernier_message ||
-                        (conversation.derniere_photo ? 'Photo envoyee' : 'Aucun message')}
+                        (conversation.derniere_photo ? 'Photo envoyée' : 'Aucun message')}
                     </p>
                   </div>
                 </div>

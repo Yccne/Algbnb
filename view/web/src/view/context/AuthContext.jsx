@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { authController } from '@algbnb/controller-client';
+import { adminController, authController } from '@algbnb/controller-client';
 
 export const AuthContext = createContext();
 
@@ -93,8 +93,36 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const startImpersonation = async (userId) => {
+    const adminToken = authController.getToken();
+    const adminUser = authController.getCurrentUser();
+    const session = await adminController.startAdminImpersonation(userId);
+    const nextUser = authController.startImpersonationSession({
+      adminToken,
+      adminUser,
+      token: session.token,
+      user: session.user,
+      targetUserId: userId,
+    });
+    setUser(nextUser);
+    return nextUser;
+  };
+
+  const returnToAdmin = async () => {
+    const restored = authController.restoreAdminSession();
+    if (!restored?.user) {
+      await logout();
+      return null;
+    }
+    setUser(restored.user);
+    if (restored.targetUserId) {
+      await adminController.endAdminImpersonation(restored.targetUserId).catch(() => null);
+    }
+    return restored.user;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, loginWithSocial, logout, refreshUser, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithGoogle, loginWithSocial, logout, refreshUser, updateProfile, startImpersonation, returnToAdmin }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,6 +7,7 @@
     "start": "node index.js",
     "smoke:web": "node scripts/smokeWebFlow.mjs",
     "qa:reset-geo": "node scripts/resetGeoQaData.mjs",
+    "qa:advanced-api": "node scripts/qaAdvancedApi.mjs",
     "qa:web-api": "node scripts/qaWebApiAudit.mjs",
     "check:mvc": "node scripts/checkMvcBoundaries.mjs"
   },

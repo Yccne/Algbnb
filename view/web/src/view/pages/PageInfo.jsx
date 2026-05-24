@@ -15,10 +15,10 @@ const pages = {
   },
   conditions: {
     title: 'Conditions',
-    intro: 'Algbnb permet de publier, rechercher et reserver des logements sans paiement en ligne.',
+    intro: 'Algbnb permet de publier, rechercher et réserver des logements avec paiement Dahabiya sandbox.',
     points: [
-      'Les hotes restent responsables de la precision de leurs annonces.',
-      'Les voyageurs doivent reserver avec des informations exactes.',
+      'Les hôtes restent responsables de la précision de leurs annonces.',
+      'Les voyageurs doivent réserver avec des informations exactes.',
       'Les annulations et validations sont gerees depuis les espaces utilisateur.',
     ],
   },
@@ -26,9 +26,9 @@ const pages = {
     title: 'Aide',
     intro: 'Retrouve les actions principales du site et les pages utiles pour continuer.',
     points: [
-      'Pour publier un logement, connecte-toi avec un compte hote.',
-      'Pour reserver, choisis les dates sur une fiche logement puis confirme la demande.',
-      'Pour contacter un hote, utilise la messagerie depuis la fiche logement.',
+      "Pour publier un logement, connecte-toi avec un compte hôte.",
+      'Pour réserver, choisis les dates sur une fiche logement puis valide le paiement sandbox.',
+      "Pour contacter un hôte, utilise la messagerie depuis la fiche logement.",
     ],
   },
 };

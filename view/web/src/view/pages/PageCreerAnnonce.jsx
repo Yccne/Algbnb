@@ -6,6 +6,7 @@ import { logementController } from '@algbnb/controller-client';
 import { Navbar } from '../components/Navbar';
 import { LocationSearchInput } from '../components/LocationSearchInput';
 import { useAuth } from '../context/AuthContext';
+import { getMapStyle, installMapStyleFallback, mapLibreFrenchLocale } from '../utils/mapStyle';
 
 const initialState = {
   titre: '',
@@ -24,9 +25,9 @@ const initialState = {
   mode_reservation: 'sur_approbation',
   politique_annulation: 'moderee',
   regles_maison: '',
+  compte_ccp: '',
   equipements: [],
   photos: [],
-  photo_urls_text: '',
 };
 
 const emptyAvailabilityRange = {
@@ -47,19 +48,8 @@ const availableEquipements = [
 ];
 
 const algeriaMapCenter = [3.0588, 36.7538];
-
-const mapStyle = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: 'OpenStreetMap',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-};
+const MIN_LISTING_PHOTOS = 4;
+const MAX_LISTING_PHOTOS = 10;
 
 const getCityFromSuggestion = (suggestion) =>
   suggestion?.address?.city ||
@@ -93,12 +83,6 @@ const locationNamesMatch = (left, right) => {
   );
 };
 
-const parsePhotoUrls = (value) =>
-  String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
 const isValidAlgeriaCoordinate = (latitude, longitude) => {
   const lat = Number(latitude);
   const lng = Number(longitude);
@@ -130,19 +114,22 @@ const ListingLocationMap = ({ latitude, longitude, center, onPick, onCenterChang
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
 
-    mapRef.current = new maplibregl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
-      style: mapStyle,
+      style: getMapStyle(),
       center: initialCenterRef.current,
       zoom: 11,
       attributionControl: true,
+      locale: mapLibreFrenchLocale,
     });
-    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-    mapRef.current.on('moveend', () => {
-      const next = mapRef.current.getCenter();
+    mapRef.current = map;
+    const removeMapFallback = installMapStyleFallback(map);
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    map.on('moveend', () => {
+      const next = map.getCenter();
       onCenterChangeRef.current?.([Number(next.lng.toFixed(7)), Number(next.lat.toFixed(7))]);
     });
-    mapRef.current.on('click', (event) => {
+    map.on('click', (event) => {
       if (disabledRef.current) return;
       onPickRef.current({
         latitude: Number(event.lngLat.lat.toFixed(7)),
@@ -151,8 +138,9 @@ const ListingLocationMap = ({ latitude, longitude, center, onPick, onCenterChang
     });
 
     return () => {
+      removeMapFallback();
       markerRef.current?.remove();
-      mapRef.current?.remove();
+      map.remove();
       markerRef.current = null;
       mapRef.current = null;
     };
@@ -196,9 +184,8 @@ const ListingLocationMap = ({ latitude, longitude, center, onPick, onCenterChang
   return <div ref={containerRef} className="listing-location-picker" aria-label="Carte pour placer le logement" />;
 };
 
-const validateAnnouncementForm = (form, { positionConfirmed, selectedLocation, geocoding, geoError }) => {
+const validateAnnouncementForm = (form, { positionConfirmed, selectedLocation, geocoding, geoError, existingPhotos, editId }) => {
   const errors = [];
-  const photoUrls = parsePhotoUrls(form.photo_urls_text);
 
   if (!form.titre.trim() || form.titre.trim().length < 5) {
     errors.push('Le titre doit contenir au moins 5 caracteres.');
@@ -227,8 +214,20 @@ const validateAnnouncementForm = (form, { positionConfirmed, selectedLocation, g
   if (Number(form.prix_par_nuit) < 1) {
     errors.push('Le prix par nuit doit etre superieur a 0.');
   }
-  if ((!Array.isArray(form.photos) || form.photos.length === 0) && photoUrls.length === 0) {
-    errors.push('Ajoute au moins une photo ou une URL de photo.');
+  const uploadedCount = Array.isArray(form.photos) ? form.photos.length : 0;
+  const existingCount = Array.isArray(existingPhotos) ? existingPhotos.length : 0;
+  const effectivePhotoCount = uploadedCount > 0 ? uploadedCount : existingCount;
+  if (uploadedCount > MAX_LISTING_PHOTOS) {
+    errors.push(`Tu peux ajouter ${MAX_LISTING_PHOTOS} photos maximum.`);
+  }
+  if (!editId && uploadedCount < MIN_LISTING_PHOTOS) {
+    errors.push('Ajoute au moins 4 photos du logement.');
+  }
+  if (editId && effectivePhotoCount < MIN_LISTING_PHOTOS) {
+    errors.push('Garde au moins 4 photos existantes ou ajoute au moins 4 nouvelles photos.');
+  }
+  if (form.compte_ccp && !/^\d{10,20}$/.test(form.compte_ccp.replace(/[\s-]/g, ''))) {
+    errors.push('Le numero de compte CCP est invalide (chiffres uniquement, 10 a 20 caracteres).');
   }
   if (!selectedLocation) {
     errors.push('Selectionne une adresse ou une ville dans la liste avant de placer le logement.');
@@ -263,7 +262,19 @@ export const PageCreerAnnonce = () => {
   const [geoError, setGeoError] = useState('');
   const [disponibilites, setDisponibilites] = useState([]);
   const [rangeDraft, setRangeDraft] = useState(emptyAvailabilityRange);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [existingPhotos, setExistingPhotos] = useState([]);
+  const [photoPreviews, setPhotoPreviews] = useState([]);
   const reverseRequestRef = useRef(0);
+
+  useEffect(() => {
+    const previews = (form.photos || []).map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+    setPhotoPreviews(previews);
+    return () => previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [form.photos]);
 
   useEffect(() => {
     const loadAnnonce = async () => {
@@ -292,10 +303,11 @@ export const PageCreerAnnonce = () => {
           mode_reservation: annonce.mode_reservation || 'sur_approbation',
           politique_annulation: annonce.politique_annulation || 'moderee',
           regles_maison: annonce.regles_maison || '',
+          compte_ccp: annonce.compte_ccp || '',
           equipements: annonce.equipements || [],
           photos: [],
-          photo_urls_text: Array.isArray(annonce.photos) ? annonce.photos.join(', ') : '',
         }));
+        setExistingPhotos(Array.isArray(annonce.photos) ? annonce.photos : []);
 
         setLocationSearch([annonce.adresse, annonce.ville].filter(Boolean).join(', '));
         if (isValidAlgeriaCoordinate(annonce.latitude ?? annonce.lat, annonce.longitude ?? annonce.lng)) {
@@ -314,12 +326,12 @@ export const PageCreerAnnonce = () => {
         const ranges = await logementController.getDisponibilites(editId);
         setDisponibilites(
           (ranges || [])
-            .filter((item) => item.source_blocage !== 'reservation')
+            .filter((item) => item.source_blocage === 'manuel')
             .map((item) => ({
               date_debut: item.date_debut,
               date_fin: item.date_fin,
               est_bloque: item.est_bloque !== false,
-              source_blocage: item.source_blocage || 'manuel',
+              source_blocage: 'manuel',
               note_interne: item.note_interne || '',
             }))
         );
@@ -445,18 +457,25 @@ export const PageCreerAnnonce = () => {
   };
 
   const addAvailabilityRange = () => {
+    setAvailabilityError('');
     if (!rangeDraft.date_debut || !rangeDraft.date_fin) {
-      setError('Choisis une date de debut et une date de fin pour bloquer une plage.');
+      setAvailabilityError('Choisis une date de debut et une date de fin pour bloquer une plage.');
       return;
     }
     if (rangeDraft.date_fin < rangeDraft.date_debut) {
-      setError('La date de fin doit etre egale ou posterieure a la date de debut.');
+      setAvailabilityError('La date de fin doit etre egale ou posterieure a la date de debut.');
+      return;
+    }
+    const overlaps = disponibilites.some(
+      (item) => !(item.date_fin < rangeDraft.date_debut || item.date_debut > rangeDraft.date_fin)
+    );
+    if (overlaps) {
+      setAvailabilityError('Cette plage chevauche deja un autre blocage.');
       return;
     }
 
-    setDisponibilites((current) => [...current, { ...rangeDraft }]);
+    setDisponibilites((current) => [...current, { ...rangeDraft, source_blocage: 'manuel' }]);
     setRangeDraft(emptyAvailabilityRange);
-    setError('');
   };
 
   const removeAvailabilityRange = (index) => {
@@ -472,6 +491,8 @@ export const PageCreerAnnonce = () => {
       selectedLocation,
       geocoding,
       geoError,
+      existingPhotos,
+      editId,
     });
     if (validationErrors.length > 0) {
       setError(validationErrors.join('\n'));
@@ -484,7 +505,6 @@ export const PageCreerAnnonce = () => {
       ...form,
       latitude: form.latitude === '' ? undefined : Number(form.latitude),
       longitude: form.longitude === '' ? undefined : Number(form.longitude),
-      photo_urls: parsePhotoUrls(form.photo_urls_text),
     };
 
     try {
@@ -498,12 +518,21 @@ export const PageCreerAnnonce = () => {
       await logementController.setDisponibilites(logement.id, disponibilites);
       navigate('/dashboard-hote');
     } catch (submitError) {
-      setError(submitError.message);
+      if (/blocage|plage|reservation|réservation|chevauche/i.test(submitError.message || '')) {
+        setAvailabilityError(submitError.message);
+      } else {
+        setError(submitError.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const uploadedPhotosSelected = (form.photos || []).length > 0;
+  const displayedPhotos = uploadedPhotosSelected
+    ? photoPreviews
+    : existingPhotos.map((url, index) => ({ url, name: `Photo existante ${index + 1}` }));
+  const displayedPhotoCount = uploadedPhotosSelected ? form.photos.length : existingPhotos.length;
   const canManageListings = user && (user.role_type === 'hote' || user.role_type === 'admin');
 
   if (!canManageListings) {
@@ -531,10 +560,10 @@ export const PageCreerAnnonce = () => {
             }}
           >
             <h1 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-3)' }}>
-              Espace reserve aux hotes
+              Espace réservé aux hôtes
             </h1>
             <p style={{ color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-6)' }}>
-              Connecte-toi avec un compte hote pour publier et gerer tes annonces.
+              Connecte-toi avec un compte hôte pour publier et gérer tes annonces.
             </p>
             <div style={{ display: 'flex', gap: 'var(--spacing-3)', flexWrap: 'wrap' }}>
               {!user ? (
@@ -603,7 +632,7 @@ export const PageCreerAnnonce = () => {
         >
           <div>
             <h2 style={{ fontSize: 'var(--title-lg)', marginBottom: 'var(--spacing-4)' }}>
-              Informations generales
+              Informations générales
             </h2>
             <div style={{ display: 'grid', gap: 'var(--spacing-4)' }}>
               <input
@@ -810,6 +839,35 @@ export const PageCreerAnnonce = () => {
                 rows="4"
                 className="input-field"
               />
+              <div
+                style={{
+                  display: 'grid',
+                  gap: 'var(--spacing-2)',
+                  padding: 'var(--spacing-4)',
+                  border: '1px solid var(--outline-variant)',
+                  borderRadius: 'var(--radius-DEFAULT)',
+                  backgroundColor: 'var(--surface-low)',
+                }}
+              >
+                <label
+                  htmlFor="compte_ccp"
+                  style={{ color: 'var(--on-surface)', fontWeight: 700 }}
+                >
+                  Paiement - Compte CCP
+                </label>
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+                  Indique ton numero CCP Algerie Poste pour que le voyageur puisse faire le
+                  virement apres le paiement sandbox.
+                </p>
+                <input
+                  id="compte_ccp"
+                  inputMode="numeric"
+                  value={form.compte_ccp}
+                  onChange={(event) => updateField('compte_ccp', event.target.value)}
+                  placeholder="Ex: 1234567890"
+                  className="input-field"
+                />
+              </div>
             </div>
           </div>
 
@@ -842,13 +900,44 @@ export const PageCreerAnnonce = () => {
                 multiple
                 onChange={(event) => updateField('photos', Array.from(event.target.files || []))}
               />
-              <textarea
-                value={form.photo_urls_text}
-                onChange={(event) => updateField('photo_urls_text', event.target.value)}
-                placeholder="Ou colle des URLs d images separees par des virgules"
-                rows="3"
-                className="input-field"
-              />
+              <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+                {uploadedPhotosSelected
+                  ? `${form.photos.length} nouvelle(s) photo(s) selectionnee(s). Elles remplaceront la galerie existante.`
+                  : editId && existingPhotos.length > 0
+                    ? `${existingPhotos.length} photo(s) existante(s) conservee(s).`
+                    : `Ajoute entre ${MIN_LISTING_PHOTOS} et ${MAX_LISTING_PHOTOS} photos du logement.`}
+                {` Compteur: ${displayedPhotoCount}/${MAX_LISTING_PHOTOS}.`}
+              </div>
+              {displayedPhotoCount > 0 && displayedPhotoCount < MIN_LISTING_PHOTOS ? (
+                <div style={{ color: 'var(--error)', fontSize: 'var(--body-sm)' }}>
+                  Ajoute au moins {MIN_LISTING_PHOTOS} photos du logement.
+                </div>
+              ) : null}
+              {displayedPhotos.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 'var(--spacing-3)' }}>
+                  {displayedPhotos.map((photo) => (
+                    <figure
+                      key={`${photo.name}-${photo.url}`}
+                      style={{
+                        margin: 0,
+                        borderRadius: 'var(--radius-DEFAULT)',
+                        overflow: 'hidden',
+                        border: '1px solid var(--outline-variant)',
+                        backgroundColor: 'var(--surface-lowest)',
+                      }}
+                    >
+                      <img
+                        src={photo.url}
+                        alt={photo.name}
+                        style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
+                      />
+                      <figcaption style={{ padding: '8px', color: 'var(--on-surface-variant)', fontSize: 'var(--body-xs)' }}>
+                        {photo.name}
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -884,16 +973,12 @@ export const PageCreerAnnonce = () => {
                   onChange={(event) => setRangeDraft((current) => ({ ...current, date_fin: event.target.value }))}
                   className="input-field"
                 />
-                <select
-                  value={rangeDraft.source_blocage}
-                  onChange={(event) =>
-                    setRangeDraft((current) => ({ ...current, source_blocage: event.target.value }))
-                  }
+                <div
                   className="input-field"
+                  style={{ display: 'flex', alignItems: 'center', color: 'var(--on-surface-variant)' }}
                 >
-                  <option value="manuel">Bloquer la date</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
+                  Blocage
+                </div>
               </div>
               <input
                 value={rangeDraft.note_interne}
@@ -906,6 +991,11 @@ export const PageCreerAnnonce = () => {
                   Ajouter cette plage
                 </button>
               </div>
+              {availabilityError ? (
+                <div style={{ color: 'var(--error)', fontSize: 'var(--body-sm)' }}>
+                  {availabilityError}
+                </div>
+              ) : null}
 
               {disponibilites.length > 0 ? (
                 <div style={{ display: 'grid', gap: 'var(--spacing-3)' }}>
@@ -927,7 +1017,7 @@ export const PageCreerAnnonce = () => {
                           {item.date_debut} au {item.date_fin}
                         </div>
                         <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
-                          {item.source_blocage === 'maintenance' ? 'Maintenance' : 'Date bloquee'}
+                          Blocage
                           {item.note_interne ? ` - ${item.note_interne}` : ''}
                         </div>
                       </div>
@@ -944,7 +1034,7 @@ export const PageCreerAnnonce = () => {
                 </div>
               ) : (
                 <div style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
-                  Aucune plage bloquee. Les voyageurs pourront reserver selon les dates disponibles.
+                  Aucune plage bloquée. Les voyageurs pourront réserver selon les dates disponibles.
                 </div>
               )}
             </div>

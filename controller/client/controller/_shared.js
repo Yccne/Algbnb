@@ -66,6 +66,10 @@ export const mapListing = (row) => {
       photo: resolveMediaUrl(row.hote_photo),
       verifie: Boolean(row.hote_verifie),
     },
+    echange: {
+      estOuvert: Boolean(row.echange_ouvert),
+      message: row.echange_message || '',
+    },
     avis: normalizeArray(row.avis).map(mapReview),
     disponibilites: normalizeArray(row.disponibilites),
   };
@@ -79,4 +83,14 @@ export const mapReservation = (row) => ({
   prix_par_nuit: Number(row.prix_par_nuit ?? row.logement_prix_par_nuit ?? 0),
   has_review: Boolean(row.has_review),
   photos: normalizeArray(row.photos).map(resolveMediaUrl),
+});
+
+export const mapExchange = (row) => ({
+  ...row,
+  logement_demandeur_photos: normalizeArray(row.logement_demandeur_photos).map(resolveMediaUrl),
+  logement_receveur_photos: normalizeArray(row.logement_receveur_photos).map(resolveMediaUrl),
+  id_logement_demandeur: Number(row.id_logement_demandeur),
+  id_logement_receveur: Number(row.id_logement_receveur),
+  id_hote_demandeur: Number(row.id_hote_demandeur),
+  id_hote_receveur: Number(row.id_hote_receveur),
 });

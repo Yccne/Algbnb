@@ -5,9 +5,15 @@
 
 
     "audit:web": "npm --prefix view/web run audit:web",
+    "audit:advanced-web": "npm --prefix view/web run audit:advanced-web",
+    "audit:presentation-web": "npm --prefix view/web run audit:presentation-web",
     "build": "npm --prefix view/web run build",
+    "build:mobile:web": "cd view/mobile && expo export --platform web --output-dir dist-mobile-test",
+    "capture:report": "node view/web/scripts/captureReportScreens.mjs",
     "check:mvc": "npm --prefix controller/api run check:mvc",
     "lint": "npm --prefix view/web run lint",
+    "qa:advanced-api": "npm --prefix controller/api run qa:advanced-api",
+    "qa:clean": "node scripts/runCleanQa.mjs",
     "qa:web-api": "npm --prefix controller/api run qa:web-api"
   },
   "workspaces": [

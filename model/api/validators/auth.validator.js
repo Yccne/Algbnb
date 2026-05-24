@@ -19,7 +19,7 @@ const validateRole = (roleType) => {
 };
 
 const validateSocialProvider = (provider) => {
-  if (!['google', 'facebook'].includes(provider)) {
+  if (!['google'].includes(provider)) {
     throw badRequest('Fournisseur social non supporte.');
   }
 };
@@ -55,7 +55,7 @@ const validateSocialPayload = (payload, provider) => {
   validateSocialProvider(provider);
   const roleType = payload.role_type || 'voyageur';
   if (!payload.idToken) {
-    throw badRequest(`Token ${provider === 'facebook' ? 'Facebook' : 'Google'} manquant.`);
+    throw badRequest('Token Google manquant.');
   }
   validateRole(roleType);
   return { idToken: payload.idToken, provider, roleType };

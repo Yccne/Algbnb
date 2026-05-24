@@ -3,7 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Bath, BedDouble, Car, Heart, MapPin, PawPrint, Share2, Snowflake, Star, Users, Utensils, Waves, Wifi } from 'lucide-react';
-import { favorisController, logementController, messagesController } from '@algbnb/controller-client';
+import { echangesController, favorisController, logementController, messagesController } from '@algbnb/controller-client';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
 
@@ -41,6 +41,10 @@ export const PageLogement = () => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteSaving, setFavoriteSaving] = useState(false);
   const [shareMessage, setShareMessage] = useState('');
+  const [myExchangeListings, setMyExchangeListings] = useState([]);
+  const [selectedExchangeListing, setSelectedExchangeListing] = useState('');
+  const [exchangeMessage, setExchangeMessage] = useState('');
+  const [exchangeSending, setExchangeSending] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -82,14 +86,69 @@ export const PageLogement = () => {
     };
   }, [user, logement?.id]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadHostListings = async () => {
+      const canLoad =
+        user?.role_type === 'hote' &&
+        logement?.echange?.estOuvert &&
+        String(user.id) !== String(logement?.hote?.id);
+
+      if (!canLoad) {
+        if (active) {
+          setMyExchangeListings([]);
+          setSelectedExchangeListing('');
+        }
+        return;
+      }
+
+      try {
+        const annonces = await logementController.getMesAnnonces();
+        if (!active) return;
+        const candidates = annonces.filter((annonce) => String(annonce.id) !== String(logement.id));
+        setMyExchangeListings(candidates);
+        setSelectedExchangeListing((current) => current || String(candidates[0]?.id || ''));
+      } catch {
+        if (active) {
+          setMyExchangeListings([]);
+          setSelectedExchangeListing('');
+        }
+      }
+    };
+
+    loadHostListings();
+    return () => {
+      active = false;
+    };
+  }, [user, logement]);
+
   const blockedRanges = useMemo(() => logement?.disponibilites || [], [logement]);
 
-  const isDateBlocked = (date) =>
+  const toIsoDate = (date) => date.toISOString().slice(0, 10);
+  const addDays = (date, days) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  };
+
+  const isNightBlocked = (date) =>
     blockedRanges.some((range) => {
       const start = new Date(`${range.date_debut}T00:00:00`);
       const end = new Date(`${range.date_fin}T23:59:59`);
       return date >= start && date <= end && range.est_bloque;
     });
+
+  const doesStayHitBlockedRange = (startDate, endDate) => {
+    if (!startDate || !endDate || endDate <= startDate) return false;
+    const start = toIsoDate(startDate);
+    const end = toIsoDate(endDate);
+    return blockedRanges.some(
+      (range) =>
+        range.est_bloque &&
+        !(range.date_fin < start || range.date_debut >= end)
+    );
+  };
 
   const nuits =
     dateArrivee && dateDepart ? Math.max(1, Math.ceil((dateDepart - dateArrivee) / (1000 * 60 * 60 * 24))) : 1;
@@ -99,15 +158,28 @@ export const PageLogement = () => {
   const frais = Math.round(sousTotal * 0.12);
   const total = sousTotal + frais;
   const requiresApproval = logement?.mode_reservation !== 'instantanee';
-  const reservationActionLabel = requiresApproval ? 'Demander a reserver' : 'Reserver maintenant';
+  const reservationActionLabel = requiresApproval ? 'Demander à réserver' : 'Réserver maintenant';
+  const canReserve = user?.role_type === 'voyageur';
 
   const handleReserve = () => {
     if (!user) {
       navigate('/connexion');
       return;
     }
+    if (!canReserve) {
+      setError('Connecte-toi avec un compte voyageur pour réserver ce logement.');
+      return;
+    }
     if (!dateArrivee || !dateDepart) {
       setError('Selectionne une date arrivee et une date depart.');
+      return;
+    }
+    if (dateDepart <= dateArrivee) {
+      setError('La date de depart doit etre apres la date d arrivee.');
+      return;
+    }
+    if (doesStayHitBlockedRange(dateArrivee, dateDepart)) {
+      setError('Ces dates ne sont plus disponibles pour ce logement.');
       return;
     }
 
@@ -202,6 +274,32 @@ export const PageLogement = () => {
     }
   };
 
+  const handleCreateExchange = async () => {
+    if (!user) {
+      navigate('/connexion');
+      return;
+    }
+    if (!selectedExchangeListing) {
+      setError('Choisis un de tes logements pour proposer un échange.');
+      return;
+    }
+
+    setExchangeSending(true);
+    setError('');
+    try {
+      await echangesController.createExchange({
+        id_logement_demandeur: selectedExchangeListing,
+        id_logement_receveur: logement.id,
+        message: exchangeMessage,
+      });
+      navigate('/dashboard-hote');
+    } catch (exchangeError) {
+      setError(exchangeError.message);
+    } finally {
+      setExchangeSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div>
@@ -223,6 +321,10 @@ export const PageLogement = () => {
   }
 
   const image = logement.photos?.[0] || fallbackImage;
+  const canRequestExchange =
+    user?.role_type === 'hote' &&
+    logement.echange?.estOuvert &&
+    String(user.id) !== String(logement.hote?.id);
 
   return (
     <div style={{ backgroundColor: 'var(--bg-main)', minHeight: '100vh', paddingBottom: '100px' }}>
@@ -273,11 +375,11 @@ export const PageLogement = () => {
 
           <div style={{ display: 'flex', gap: 'var(--spacing-4)', alignItems: 'center', padding: 'var(--spacing-6)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--spacing-8)' }}>
             <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--primary-container)' }}>
-              <img src={logement.hote?.photo || 'https://placehold.co/100x100?text=H'} alt="Hote" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={logement.hote?.photo || 'https://placehold.co/100x100?text=H'} alt="Hôte" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <h3 style={{ fontSize: 'var(--body-md)', fontWeight: '700' }}>Hote : {logement.hote?.nom || 'Hote'}</h3>
-              <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{logement.hote?.verifie ? 'Profil verifie' : 'Profil en cours de verification'}</p>
+              <h3 style={{ fontSize: 'var(--body-md)', fontWeight: '700' }}>Hôte : {logement.hote?.nom || 'Hôte'}</h3>
+              <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>{logement.hote?.verifie ? 'Profil vérifié' : 'Profil en cours de vérification'}</p>
             </div>
             <button className="btn-outline" onClick={handleContactHost}>
               Contacter
@@ -293,6 +395,58 @@ export const PageLogement = () => {
               </div>
             </div>
           </div>
+
+          {logement.echange?.estOuvert ? (
+            <div style={{ padding: 'var(--spacing-6)', backgroundColor: 'var(--surface-low)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--spacing-8)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--spacing-4)', flexWrap: 'wrap', marginBottom: 'var(--spacing-4)' }}>
+                <div>
+                  <h3 style={{ fontSize: 'var(--title-md)', marginBottom: 'var(--spacing-1)' }}>Échange possible</h3>
+                  <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+                    {logement.echange.message || 'Cet hôte est ouvert à un échange de logement avec un autre hôte.'}
+                  </p>
+                </div>
+                <span className="badge badge-success">Ouvert aux hôtes</span>
+              </div>
+
+              {canRequestExchange ? (
+                <div style={{ display: 'grid', gap: 'var(--spacing-3)' }}>
+                  <select
+                    className="input-field"
+                    value={selectedExchangeListing}
+                    onChange={(event) => setSelectedExchangeListing(event.target.value)}
+                  >
+                    {myExchangeListings.length === 0 ? <option value="">Aucun de tes logements disponible</option> : null}
+                    {myExchangeListings.map((annonce) => (
+                      <option key={annonce.id} value={annonce.id}>
+                        {annonce.titre} - {annonce.ville}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    value={exchangeMessage}
+                    onChange={(event) => setExchangeMessage(event.target.value)}
+                    placeholder="Message pour démarrer la discussion"
+                  />
+                  <button
+                    className="btn-primary"
+                    onClick={handleCreateExchange}
+                    disabled={exchangeSending || !selectedExchangeListing}
+                    style={{ justifySelf: 'flex-start' }}
+                  >
+                    Proposer un échange
+                  </button>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--body-sm)' }}>
+                  {user?.role_type === 'hote' && String(user.id) === String(logement.hote?.id)
+                    ? "Cette annonce est déjà ouverte à l'échange depuis ton dashboard hôte."
+                    : 'Connecte-toi avec un compte hôte pour proposer un échange depuis un de tes logements.'}
+                </p>
+              )}
+            </div>
+          ) : null}
 
           <div style={{ marginBottom: 'var(--spacing-8)' }}>
             <h2 style={{ fontSize: 'var(--headline-md)', marginBottom: 'var(--spacing-4)' }}>A propos de ce logement</h2>
@@ -353,11 +507,30 @@ export const PageLogement = () => {
               <div style={{ display: 'flex' }}>
                 <div style={{ padding: 'var(--spacing-3)', flex: 1, borderRight: '1px solid var(--surface-high)' }}>
                   <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--on-surface-variant)' }}>Arrivee</label>
-                  <DatePicker selected={dateArrivee} onChange={(value) => setDateArrivee(value)} minDate={new Date()} filterDate={(date) => !isDateBlocked(date)} dateFormat="dd/MM/yyyy" placeholderText="Selectionner" className="date-picker-input" />
+                  <DatePicker
+                    selected={dateArrivee}
+                    onChange={(value) => {
+                      setDateArrivee(value);
+                      if (value && dateDepart && dateDepart <= value) setDateDepart(null);
+                    }}
+                    minDate={new Date()}
+                    filterDate={(date) => !isNightBlocked(date)}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Selectionner"
+                    className="date-picker-input"
+                  />
                 </div>
                 <div style={{ padding: 'var(--spacing-3)', flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--on-surface-variant)' }}>Depart</label>
-                  <DatePicker selected={dateDepart} onChange={(value) => setDateDepart(value)} minDate={dateArrivee || new Date()} filterDate={(date) => !isDateBlocked(date)} dateFormat="dd/MM/yyyy" placeholderText="Selectionner" className="date-picker-input" />
+                  <DatePicker
+                    selected={dateDepart}
+                    onChange={(value) => setDateDepart(value)}
+                    minDate={dateArrivee ? addDays(dateArrivee, 1) : new Date()}
+                    filterDate={(date) => (dateArrivee ? !doesStayHitBlockedRange(dateArrivee, date) : !isNightBlocked(date))}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Selectionner"
+                    className="date-picker-input"
+                  />
                 </div>
               </div>
               <div style={{ padding: 'var(--spacing-3)', borderTop: '1px solid var(--surface-high)' }}>
@@ -379,16 +552,22 @@ export const PageLogement = () => {
               </div>
             ) : null}
 
-            <button className="btn-primary" style={{ width: '100%', padding: 'var(--spacing-4)', fontSize: '1.05rem', marginBottom: 'var(--spacing-4)' }} onClick={handleReserve}>
-              {reservationActionLabel}
-            </button>
+            {user && !canReserve ? (
+              <div style={{ marginBottom: 'var(--spacing-4)', padding: 'var(--spacing-4)', backgroundColor: 'rgba(15, 110, 86, 0.08)', color: 'var(--on-surface)', borderRadius: 'var(--radius-DEFAULT)', fontSize: 'var(--body-sm)' }}>
+                Connecte-toi avec un compte voyageur pour réserver ce logement.
+              </div>
+            ) : (
+              <button className="btn-primary" style={{ width: '100%', padding: 'var(--spacing-4)', fontSize: '1.05rem', marginBottom: 'var(--spacing-4)' }} onClick={handleReserve}>
+                {reservationActionLabel}
+              </button>
+            )}
             <button className="btn-outline" style={{ width: '100%', marginBottom: 'var(--spacing-4)' }} onClick={handleContactHost}>
-              Contacter l hote
+              Contacter l'hôte
             </button>
             <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--on-surface-variant)', marginBottom: 'var(--spacing-6)' }}>
               {requiresApproval
-                ? 'La demande sera envoyee a l hote pour validation, sans paiement en ligne.'
-                : 'La reservation sera confirmee directement, sans paiement en ligne.'}
+                ? "La demande sera envoyée à l'hôte puis le paiement Dahabiya sandbox sera validé."
+                : 'La réservation sera confirmée avec paiement Dahabiya sandbox.'}
             </p>
 
             {dateArrivee && dateDepart ? (

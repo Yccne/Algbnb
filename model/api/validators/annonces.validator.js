@@ -39,6 +39,10 @@ const parsePhotoUrls = (photoUrls) => {
   return [];
 };
 
+const MIN_LISTING_PHOTOS = 4;
+const MAX_LISTING_PHOTOS = 10;
+const MIN_LISTING_PHOTOS_MESSAGE = 'Ajoute au moins 4 photos du logement.';
+
 const validateAnnoncePayload = async (body, files = [], { requirePhoto = true } = {}) => {
   const {
     titre,
@@ -53,6 +57,7 @@ const validateAnnoncePayload = async (body, files = [], { requirePhoto = true } 
     nb_salles_de_bain,
     capacite_accueil,
     prix_par_nuit,
+    compte_ccp,
   } = body;
 
   const erreurs = [];
@@ -83,8 +88,21 @@ const validateAnnoncePayload = async (body, files = [], { requirePhoto = true } 
     }
   }
 
-  if (requirePhoto && (!files || files.length === 0) && photoUrls.length === 0) {
-    erreurs.push('Ajoute au moins une photo de logement ou une URL de photo.');
+  if (photoUrls.length > 0) {
+    erreurs.push('Ajoute les photos depuis ton appareil. Les URLs d images ne sont plus acceptees.');
+  }
+
+  const photoCount = Array.isArray(files) ? files.length : 0;
+  if (photoCount > MAX_LISTING_PHOTOS) {
+    erreurs.push(`Tu peux ajouter ${MAX_LISTING_PHOTOS} photos maximum.`);
+  }
+
+  if (requirePhoto && photoCount < MIN_LISTING_PHOTOS) {
+    erreurs.push(MIN_LISTING_PHOTOS_MESSAGE);
+  }
+
+  if (compte_ccp && !/^\d{10,20}$/.test(String(compte_ccp).replace(/[\s-]/g, ''))) {
+    erreurs.push('Le numero de compte CCP est invalide (chiffres uniquement, 10 a 20 caracteres).');
   }
 
   let reversedLocation = null;
@@ -108,6 +126,9 @@ const validateAnnoncePayload = async (body, files = [], { requirePhoto = true } 
 };
 
 module.exports = {
+  MAX_LISTING_PHOTOS,
+  MIN_LISTING_PHOTOS,
+  MIN_LISTING_PHOTOS_MESSAGE,
   parseEquipements,
   parsePhotoUrls,
   validateAnnoncePayload,

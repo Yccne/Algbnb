@@ -9,7 +9,7 @@ const labelForType = (type) => {
   if (String(type).startsWith('rappel')) return 'Rappel';
   if (type === 'message') return 'Message';
   if (type === 'annulation') return 'Annulation';
-  return 'Reservation';
+  return 'Réservation';
 };
 
 export const PageNotifications = () => {
@@ -73,7 +73,7 @@ export const PageNotifications = () => {
         <header style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--spacing-6)', alignItems: 'flex-start', marginBottom: 'var(--spacing-10)', flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-4)', lineHeight: 1.1 }}>Notifications</h1>
-            <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>Demandes, confirmations, annulations, rappels de sejour et messages.</p>
+            <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>Demandes, confirmations, annulations, rappels de séjour et messages.</p>
           </div>
           {user ? (
             <button className="btn-outline" onClick={markAllRead} disabled={markingAll}>

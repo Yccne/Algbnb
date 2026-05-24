@@ -33,11 +33,20 @@ const updateStatus = asyncController(async (req, res) => {
   }));
 });
 
+const openDispute = asyncController(async (req, res) => {
+  res.status(201).json(await reservationsService.openDispute({
+    currentUser: req.user,
+    reservationId: req.params.id,
+    message: req.body.message,
+  }));
+});
+
 module.exports = {
   cancel,
   create,
   hostMine,
   mine,
+  openDispute,
   traveler,
   updateStatus,
 };

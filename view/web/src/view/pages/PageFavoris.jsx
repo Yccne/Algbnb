@@ -37,7 +37,7 @@ export const PageFavoris = () => {
       <div className="page-container" style={{ flex: 1, marginTop: 'var(--spacing-16)' }}>
         <header style={{ marginBottom: 'var(--spacing-12)' }}>
           <h1 style={{ fontSize: 'var(--display-md)', letterSpacing: '-0.02em', marginBottom: 'var(--spacing-4)', lineHeight: 1.1 }}>Favoris</h1>
-          <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>Retrouve rapidement les logements que tu souhaites comparer ou reserver plus tard.</p>
+          <p style={{ color: 'var(--on-surface-variant)', fontSize: 'var(--headline-md)' }}>Retrouve rapidement les logements que tu souhaites comparer ou réserver plus tard.</p>
         </header>
 
         {loading ? (

@@ -11,7 +11,7 @@ import { logementController } from '@algbnb/controller-client';
 import { Navbar } from '../components/Navbar';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { LogementCard } from '../components/LogementCard';
-import { LocationSearchInput, normalizeSearchText } from '../components/LocationSearchInput';
+import { LocationSearchInput, getSuggestionGeoFilters, normalizeSearchText } from '../components/LocationSearchInput';
 
 const categories = ['Appartement', 'Maison', 'Chambre', 'Villa', 'Chalet'];
 
@@ -19,6 +19,7 @@ export const PageAccueil = () => {
   const [logements, setLogements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedPlaceFilters, setSelectedPlaceFilters] = useState(null);
   const [voyageurs, setVoyageurs] = useState('');
   const [dateArrivee, setDateArrivee] = useState('');
   const [dateDepart, setDateDepart] = useState('');
@@ -41,6 +42,13 @@ export const PageAccueil = () => {
     const params = new URLSearchParams();
     const cleanSearch = normalizeSearchText(search);
     if (cleanSearch) params.set('search', cleanSearch);
+    if (selectedPlaceFilters) {
+      Object.entries(selectedPlaceFilters).forEach(([key, value]) => {
+        if (key !== 'search' && value !== undefined && value !== null && String(value).trim() !== '') {
+          params.set(key, value);
+        }
+      });
+    }
     if (voyageurs) params.set('voyageurs', voyageurs);
     if (dateArrivee) params.set('dateArrivee', dateArrivee);
     if (dateDepart) params.set('dateDepart', dateDepart);
@@ -68,7 +76,7 @@ export const PageAccueil = () => {
           >
             Trouvez un logement,
             <br />
-            pret a etre reserve.
+            prêt à être réservé.
           </h1>
           <p
             style={{
@@ -78,7 +86,7 @@ export const PageAccueil = () => {
               lineHeight: '1.5',
             }}
           >
-            Recherchez, reservez et echangez avec des hotes en quelques clics.
+            Recherchez, réservez et échangez avec des hôtes en quelques clics.
           </p>
         </div>
 
@@ -113,9 +121,14 @@ export const PageAccueil = () => {
               <MapPin size={20} color="var(--primary)" />
               <LocationSearchInput
                 value={search}
-                onChange={setSearch}
+                onChange={(value) => {
+                  setSearch(value);
+                  setSelectedPlaceFilters(null);
+                }}
                 onSelect={(suggestion) => {
-                  setSearch(suggestion.searchValue || suggestion.displayLabel || '');
+                  const geoFilters = getSuggestionGeoFilters(suggestion);
+                  setSearch(geoFilters.search || suggestion.searchValue || suggestion.displayLabel || '');
+                  setSelectedPlaceFilters(geoFilters);
                 }}
               />
             </div>

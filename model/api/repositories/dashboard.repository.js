@@ -8,7 +8,7 @@ const getHostStats = (hostId) =>
         COUNT(DISTINCT r.id) AS nb_reservations_total,
         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'confirmee') AS nb_reservations_confirmees,
         COUNT(DISTINCT r.id) FILTER (WHERE r.statut = 'en_attente') AS nb_reservations_en_attente,
-        COUNT(DISTINCT r.id) FILTER (WHERE r.statut IN ('annulee_hote', 'annulee_voyageur')) AS nb_annulations,
+        COUNT(DISTINCT r.id) FILTER (WHERE r.statut IN ('annulee_hote', 'annulee_voyageur', 'annulee_admin')) AS nb_annulations,
         COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut IN ('confirmee', 'terminee')), 0) AS revenu_total,
         COALESCE(ROUND(AVG(a.note_hote)::numeric, 2), 0) AS note_moyenne_hote
       FROM logement l
@@ -25,6 +25,8 @@ const getHostListings = (hostId) =>
     `
       SELECT
         l.*,
+        COALESCE(lep.est_ouvert, FALSE) AS echange_ouvert,
+        lep.message AS echange_message,
         COALESCE((
           SELECT ARRAY_REMOVE(ARRAY_AGG(lp.url_photo ORDER BY lp.ordre_affichage), NULL)
           FROM logement_photo lp
@@ -34,11 +36,12 @@ const getHostListings = (hostId) =>
         COALESCE(SUM(r.montant_total) FILTER (WHERE r.statut IN ('confirmee', 'terminee')), 0) AS revenu,
         COALESCE(ROUND(AVG(a.note_logement)::numeric, 2), 0) AS note_moyenne
       FROM logement l
+      LEFT JOIN logement_echange_preference lep ON lep.id_logement = l.id
       LEFT JOIN reservation r ON r.id_logement = l.id
       LEFT JOIN avis a ON a.id_logement = l.id AND a.est_visible = TRUE
       WHERE l.id_hote = $1
         AND l.est_supprime = FALSE
-      GROUP BY l.id
+      GROUP BY l.id, lep.id_logement, lep.est_ouvert, lep.message
       ORDER BY l.date_creation DESC
     `,
     [hostId]

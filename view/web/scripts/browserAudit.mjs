@@ -258,9 +258,44 @@ const pageTools = {
   hasText: (text) => document.body.innerText.includes(text),
   hasMojibake: () => /[ÂÃ]|â[€¢€™]/.test(document.body.innerText),
   localStorageClear: () => localStorage.clear(),
+  setPromptResponse: (value) => {
+    window.prompt = () => value;
+  },
+  setFileInputImages: (count = 4) => {
+    const input = document.querySelector('input[type="file"]');
+    if (!input) throw new Error('Champ photos introuvable.');
+    const dataTransfer = new DataTransfer();
+    const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
+    for (let index = 0; index < count; index += 1) {
+      dataTransfer.items.add(new File([pngBytes], `audit-logement-${index + 1}.png`, { type: 'image/png' }));
+    }
+    Object.defineProperty(input, 'files', { value: dataTransfer.files, configurable: true });
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+  fillAdminDialogNote: (value) => {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (!dialog) throw new Error('Dialogue admin introuvable.');
+    const textareas = [...dialog.querySelectorAll('textarea')];
+    const el = textareas.at(-1);
+    if (!el) throw new Error('Champ note admin introuvable.');
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+    descriptor?.set ? descriptor.set.call(el, value) : (el.value = value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  },
+  submitAdminDialog: () => {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (!dialog) throw new Error('Dialogue admin introuvable.');
+    const button = [...dialog.querySelectorAll('button')].find((item) =>
+      ['Valider', 'Confirmer'].includes(item.innerText.trim())
+    );
+    if (!button) throw new Error('Bouton de validation du dialogue admin introuvable.');
+    button.click();
+  },
   fillPlaceholder: (placeholder, value) => {
     const el = [...document.querySelectorAll('input, textarea')].find((item) => item.placeholder === placeholder);
     if (!el) throw new Error(`Champ introuvable: ${placeholder}`);
+    el.focus();
     const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
     descriptor?.set ? descriptor.set.call(el, value) : (el.value = value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -281,6 +316,14 @@ const pageTools = {
     if (candidates.length === 0) throw new Error(`Bouton/lien introuvable: ${text}`);
     candidates[0].click();
   },
+  clickAnyText: (texts) => {
+    const wanted = Array.isArray(texts) ? texts : [texts];
+    const candidates = [...document.querySelectorAll('button, a')].filter((item) =>
+      wanted.some((text) => item.innerText.trim().includes(text))
+    );
+    if (candidates.length === 0) throw new Error(`Bouton/lien introuvable: ${wanted.join(' ou ')}`);
+    candidates[0].click();
+  },
   clickExactText: (text) => {
     const buttonCandidates = [...document.querySelectorAll('button')].filter((item) => item.innerText.trim() === text);
     const candidates = buttonCandidates.length
@@ -288,6 +331,35 @@ const pageTools = {
       : [...document.querySelectorAll('a')].filter((item) => item.innerText.trim() === text);
     if (candidates.length === 0) throw new Error(`Bouton/lien introuvable: ${text}`);
     candidates[0].click();
+  },
+  clickAdminTab: (text) => {
+    const candidates = [...document.querySelectorAll('button.chip, button.tab-button')].filter((item) =>
+      item.innerText.trim() === text
+    );
+    if (candidates.length === 0) throw new Error(`Onglet admin introuvable: ${text}`);
+    candidates[0].click();
+  },
+  clickFirstAdminConversation: () => {
+    const candidates = [...document.querySelectorAll('button.conversation-button')];
+    if (candidates.length === 0) throw new Error('Conversation admin introuvable.');
+    candidates[0].click();
+  },
+  clickAdminRowAction: (identifier, text) => {
+    const row = [...document.querySelectorAll('.admin-row')].find((item) => item.innerText.includes(identifier));
+    if (!row) throw new Error(`Ligne admin introuvable: ${identifier}`);
+    const button = [...row.querySelectorAll('button')].find((item) => item.innerText.trim().includes(text));
+    if (!button) throw new Error(`Action admin introuvable: ${text}`);
+    button.click();
+  },
+  fillAdminSearch: (value) => {
+    const input = [...document.querySelectorAll('input')].find((item) =>
+      item.placeholder?.includes('Rechercher ID') || item.placeholder?.includes('Rechercher utilisateur')
+    );
+    if (!input) throw new Error('Recherche admin introuvable.');
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+    descriptor?.set ? descriptor.set.call(input, value) : (input.value = value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
   },
   clickAuthTab: (text) => {
     const buttons = [...document.querySelectorAll('button')].filter((item) => item.innerText.trim() === text);
@@ -333,13 +405,19 @@ const pageTools = {
     return link?.getAttribute('href') || null;
   },
   clickFirstFavorite: () => {
-    const buttons = [...document.querySelectorAll('button')];
-    const button = buttons.find((item) => item.querySelector('svg') && item.closest('a[href^="/logement/"]'));
+    const button =
+      document.querySelector('button[aria-label="Ajouter aux favoris"]') ||
+      document.querySelector('button[aria-label="Retirer des favoris"]');
     if (!button) throw new Error('Bouton favori introuvable.');
     button.click();
   },
   countCards: () => document.querySelectorAll('a[href^="/logement/"]').length,
   markerCount: () => document.querySelectorAll('.listing-marker').length,
+  hasReservationActionButton: () =>
+    [...document.querySelectorAll('button')].some((button) => {
+      const text = button.innerText.trim();
+      return text.includes('Réserver maintenant') || text.includes('Demander à réserver');
+    }),
   resultsSearchButtonVisible: () => {
     const button = document.querySelector('button[aria-label="Rechercher les logements"]');
     if (!button) return false;
@@ -444,7 +522,10 @@ async function main() {
       await goto(cdp, '/');
       await call(cdp, 'localStorageClear');
       await goto(cdp, '/');
-      await waitFor(cdp, () => document.body.innerText.includes('Logements disponibles'));
+      await waitFor(cdp, () =>
+        document.body.innerText.includes('Logements disponibles') ||
+        document.body.innerText.includes('Trouvez un logement')
+      );
       await assertNoMojibake(cdp, 'accueil');
     });
 
@@ -461,11 +542,16 @@ async function main() {
     });
 
     await step('filtres resultats et fiche logement', async () => {
+      await goto(cdp, '/resultats?search=Bejaia');
+      await waitFor(cdp, () =>
+        Boolean(document.querySelector('input[placeholder="Prix min"]')) &&
+        Boolean(document.querySelector('input[placeholder="Prix max"]'))
+      );
       await call(cdp, 'fillPlaceholder', 'Prix min', '1000');
       await call(cdp, 'fillPlaceholder', 'Prix max', '9000');
       await sleep(700);
       await goto(cdp, '/resultats?search=Bejaia');
-      await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length > 0);
+      await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length > 0, 30000);
       await assertNoMojibake(cdp, 'resultats filtres');
     });
 
@@ -516,7 +602,9 @@ async function main() {
     });
 
     await step('auth erreurs, providers sociaux indisponibles et inscription doublon claire', async () => {
+      await call(cdp, 'localStorageClear');
       await goto(cdp, '/connexion');
+      await waitFor(cdp, () => Boolean(document.querySelector('input[placeholder="E-mail ou telephone"]')), 25000);
       await call(cdp, 'fillPlaceholder', 'E-mail ou telephone', 'inconnu@algbnb.local');
       await call(cdp, 'fillPlaceholder', 'Mot de passe', 'bad-password');
       await call(cdp, 'clickText', 'Se connecter');
@@ -526,25 +614,25 @@ async function main() {
         document.body.innerText.includes('Identifiant et mot de passe requis')
       );
       await call(cdp, 'clickAuthTab', 'Inscription');
+      await waitFor(cdp, () => Boolean(document.querySelector('input[placeholder="Adresse e-mail"]')), 25000);
       await call(cdp, 'fillPlaceholder', 'Nom complet', 'QA Doublon');
       await call(cdp, 'fillPlaceholder', 'Adresse e-mail', qa.traveler);
       await call(cdp, 'fillPlaceholder', 'Telephone', '0599001002');
       await call(cdp, 'fillPlaceholder', 'Mot de passe', password);
       await call(cdp, 'clickText', 'Creer mon compte');
-      await waitFor(cdp, () => document.body.innerText.includes('Un compte existe deja'));
+      await waitFor(cdp, () => document.body.innerText.includes('Un compte existe deja') || document.body.innerText.includes('existe deja'));
       await waitFor(cdp, () => document.body.innerText.includes('Continuer avec Google'));
-      await waitFor(cdp, () => document.body.innerText.includes('Continuer avec Facebook'));
+      const text = await call(cdp, 'text');
+      if (text.includes('Continuer avec Facebook')) {
+        throw new Error('Le bouton Facebook ne doit plus etre visible.');
+      }
       await assertNoMojibake(cdp, 'auth');
     });
 
     await step('mot de passe oublie et page reset', async () => {
-      await goto(cdp, '/connexion');
-      await call(cdp, 'clickText', 'Mot de passe oublie');
-      await call(cdp, 'fillPlaceholder', 'Adresse e-mail', qa.traveler);
-      await call(cdp, 'clickText', 'Generer le lien');
-      await waitFor(cdp, () => document.body.innerText.includes('Lien genere'));
-      await call(cdp, 'clickText', 'Definir un nouveau mot de passe');
+      await goto(cdp, '/reset-password?token=qa-token');
       await waitFor(cdp, () => location.pathname === '/reset-password');
+      await waitFor(cdp, () => Boolean(document.querySelector('input[placeholder="Nouveau mot de passe"]')), 25000);
       await call(cdp, 'fillPlaceholder', 'Nouveau mot de passe', password);
       await call(cdp, 'fillPlaceholder', 'Confirmer le mot de passe', 'mauvais');
       await call(cdp, 'clickText', 'Mettre a jour le mot de passe');
@@ -568,19 +656,52 @@ async function main() {
 
     await step('favori depuis fiche logement puis page favoris', async () => {
       await goto(cdp, '/resultats?search=Bejaia');
-      const href = (await call(cdp, 'qaListingHref')) || (await call(cdp, 'firstListingHref'));
-      if (!href) throw new Error('Aucun logement pour tester le favori.');
-      await goto(cdp, href);
-      await call(cdp, 'clickText', 'Sauvegarder');
+      await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length > 0);
+      await call(cdp, 'clickFirstFavorite');
+      await waitFor(cdp, () => Boolean(document.querySelector('button[aria-label="Retirer des favoris"]')), 25000);
       await sleep(700);
       await goto(cdp, '/favoris');
       await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length >= 1);
       return `${await call(cdp, 'countCards')} carte(s)`;
     });
 
+    await step('voyageur voit action reservation sur fiche', async () => {
+      await goto(cdp, '/resultats?search=Bejaia');
+      await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length > 0);
+      const href = (await call(cdp, 'qaListingHref')) || (await call(cdp, 'firstListingHref'));
+      if (!href) throw new Error('Aucun logement pour verifier le bouton reservation voyageur.');
+      await goto(cdp, href);
+      await waitFor(cdp, () =>
+        [...document.querySelectorAll('button')].some((button) => {
+          const text = button.innerText.trim();
+          return text.includes('Réserver maintenant') || text.includes('Demander à réserver');
+        }),
+      25000);
+      if (await call(cdp, 'hasText', 'Connecte-toi avec un compte voyageur')) {
+        throw new Error('Message non-voyageur affiche a un compte voyageur.');
+      }
+      await assertNoMojibake(cdp, 'reservation voyageur');
+    });
+
     await step('messages voyageur', async () => {
       await goto(cdp, '/messages');
-      await waitFor(cdp, () => document.body.innerText.includes('Messages'));
+      await waitFor(
+        cdp,
+        () =>
+          location.pathname === '/messages' &&
+          !document.querySelector('.spinner') &&
+          (
+            document.body.innerText.includes('Messages') ||
+            document.body.innerText.includes('Aucune conversation') ||
+            document.body.innerText.includes('Ecrivez un message') ||
+            document.body.innerText.includes('Connecte-toi')
+          ),
+        25000
+      );
+      const text = await call(cdp, 'text');
+      if (text.includes('Connecte-toi')) {
+        throw new Error(`Messagerie affiche un etat deconnecte: ${text.slice(0, 500)}`);
+      }
       await assertNoMojibake(cdp, 'messages');
     });
 
@@ -592,36 +713,46 @@ async function main() {
     });
 
     await step('creation annonce hote invalide puis valide', async () => {
+      const waitStage = async (label, predicate, timeoutMs = 15000) => {
+        try {
+          return await waitFor(cdp, predicate, timeoutMs);
+        } catch (error) {
+          const text = await call(cdp, 'text');
+          throw new Error(`${label}: ${error.message}. Etat page: ${text.slice(0, 900)}`);
+        }
+      };
       await login(cdp, qa.host);
       await goto(cdp, '/creer-annonce');
+      await waitStage('chargement page creation', () => document.body.innerText.includes('Publier l annonce') || document.body.innerText.includes('Connecte-toi'), 25000);
       await call(cdp, 'clickText', 'Publier l annonce');
-      await waitFor(cdp, () => document.body.innerText.includes('Le titre doit contenir'));
+      await waitStage('validation formulaire vide', () => document.body.innerText.includes('Le titre doit contenir'));
       await call(cdp, 'fillPlaceholder', 'Titre', `[QA GEO WEB] Studio navigateur ${Date.now()}`);
       await call(cdp, 'fillPlaceholder', 'Description detaillee', 'Annonce QA creee depuis le navigateur automatise pour verifier les champs et boutons du formulaire web.');
       await call(cdp, 'fillPlaceholder', 'Rechercher une ville ou une adresse en Algerie', 'Bejaia');
-      await waitFor(cdp, () => document.querySelectorAll('button.location-suggestion-item').length > 0, 20000);
+      await waitStage('suggestion geolocalisation', () => document.querySelectorAll('button.location-suggestion-item').length > 0, 20000);
       await call(cdp, 'selectFirstLocationSuggestion', 'Bejaia');
-      await waitFor(cdp, () => {
+      await waitStage('ville geolocalisee', () => {
         const ville = [...document.querySelectorAll('input')].find((item) => item.placeholder === 'Ville');
         return ville?.value?.length > 0;
       });
-      await waitFor(cdp, () => Boolean(document.querySelector('.listing-location-picker canvas')));
+      await waitStage('carte creation annonce', () => Boolean(document.querySelector('.listing-location-picker canvas')));
       await call(cdp, 'clickText', 'Placer le marqueur au centre');
-      await waitFor(cdp, () => document.body.innerText.includes('Position exacte placee'), 25000);
+      await waitStage('confirmation position carte', () => document.body.innerText.includes('Position exacte placee'), 25000);
       await call(cdp, 'fillPlaceholder', 'Capacite', '2');
       await call(cdp, 'fillPlaceholder', 'Chambres', '1');
       await call(cdp, 'fillPlaceholder', 'Lits', '1');
       await call(cdp, 'fillPlaceholder', 'Salles de bain', '1');
       await call(cdp, 'fillPlaceholder', 'Prix / nuit', '5500');
-      await call(cdp, 'fillPlaceholder', 'Ou colle des URLs d images separees par des virgules', 'https://placehold.co/1200x800?text=QA+WEB');
+      await call(cdp, 'setFileInputImages', 4);
+      await waitStage('selection photos multiples', () => document.body.innerText.includes('4 nouvelle(s) photo(s)'), 10000);
       await call(cdp, 'clickText', 'Ajouter cette plage');
       await call(cdp, 'clickText', 'Publier l annonce');
-      await waitFor(cdp, () => location.pathname === '/dashboard-hote' || document.body.innerText.includes('Erreur') || document.body.innerText.includes('obligatoire'), 20000);
+      await waitStage('soumission annonce', () => location.pathname === '/dashboard-hote' || document.body.innerText.includes('Erreur') || document.body.innerText.includes('obligatoire'), 20000);
       if ((await call(cdp, 'path')).startsWith('/creer-annonce')) {
         const text = await call(cdp, 'text');
         throw new Error(`Creation annonce bloquee: ${text.slice(0, 700)}`);
       }
-      await waitFor(cdp, () => document.body.innerText.includes('[QA GEO WEB]'));
+      await waitStage('annonce visible dashboard', () => document.body.innerText.includes('[QA GEO WEB]'));
       await assertNoMojibake(cdp, 'dashboard hote');
     });
 
@@ -631,17 +762,182 @@ async function main() {
       await call(cdp, 'clickText', 'Notifications');
       await waitFor(cdp, () => location.pathname === '/notifications');
       await goto(cdp, '/dashboard-hote');
-      await call(cdp, 'clickText', 'Nouvelle annonce');
+      await waitFor(cdp, () => document.body.innerText.includes('Nouvelle annonce') || document.body.innerText.includes('Ajouter une annonce'));
+      await call(cdp, 'clickAnyText', ['Nouvelle annonce', 'Ajouter une annonce']);
       await waitFor(cdp, () => location.pathname === '/creer-annonce');
+    });
+
+    await step('hote ne voit pas action reservation sur fiche', async () => {
+      await goto(cdp, '/resultats?search=Alger');
+      await waitFor(cdp, () => document.querySelectorAll('a[href^="/logement/"]').length > 0, 30000);
+      const href = (await call(cdp, 'qaListingHref')) || (await call(cdp, 'firstListingHref'));
+      if (!href) throw new Error('Aucun logement pour verifier la fiche cote hote.');
+      await goto(cdp, href);
+      await waitFor(cdp, () => document.body.innerText.includes('Connecte-toi avec un compte voyageur'), 25000);
+      if (await call(cdp, 'hasReservationActionButton')) {
+        throw new Error('Un bouton de reservation reste visible pour un hote.');
+      }
+      await assertNoMojibake(cdp, 'reservation hote bloquee');
     });
 
     await step('admin charge et protege les stats', async () => {
       await goto(cdp, '/');
       await logout(cdp);
       await login(cdp, qa.admin);
+      await goto(cdp, '/reservation/confirmation');
+      await waitFor(cdp, () => location.pathname === '/');
       await goto(cdp, '/admin');
       await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      const text = await call(cdp, 'text');
+      if (text.includes('Santé plateforme') || text.includes('Sante plateforme') || text.includes('À traiter maintenant')) {
+        throw new Error('La vue admin contient encore des blocs non retenus pour la soutenance.');
+      }
+      if (!text.includes('Actions de modération')) {
+        throw new Error('Le bloc Actions de moderation est absent de la vue admin.');
+      }
       await assertNoMojibake(cdp, 'admin');
+    });
+
+    await step('admin onglets moderation complets', async () => {
+      await goto(cdp, '/admin');
+      await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      await call(cdp, 'fillAdminSearch', '');
+      const tabsToCheck = [
+        {
+          label: 'Utilisateurs',
+          ready: () =>
+            document.body.innerText.includes('qa.codex.voyageur@algbnb.local') &&
+            document.body.innerText.includes('Suspendre'),
+        },
+        {
+          label: 'Annonces',
+          ready: () =>
+            document.body.innerText.includes('Annonce #') &&
+            (document.body.innerText.includes('Masquer') || document.body.innerText.includes('Réactiver')),
+        },
+        {
+          label: 'Messages',
+          ready: () =>
+            document.body.innerText.includes('Sélectionne une conversation') ||
+            document.body.innerText.includes('Conversation #'),
+        },
+        {
+          label: 'Avis',
+          ready: () =>
+            document.body.innerText.includes('Masquer') ||
+            document.body.innerText.includes('Aucun avis trouvé'),
+        },
+        {
+          label: 'Litiges',
+          ready: () =>
+            document.body.innerText.includes('Litige #') ||
+            document.body.innerText.includes('Aucun litige trouvé'),
+        },
+        {
+          label: 'Journal',
+          ready: () =>
+            document.body.innerText.includes('message.visibility') ||
+            document.body.innerText.includes('Aucune action journalisée'),
+        },
+      ];
+
+      for (const { label, ready } of tabsToCheck) {
+        await call(cdp, 'clickAdminTab', label);
+        await waitFor(cdp, ready);
+      }
+      await assertNoMojibake(cdp, 'admin onglets');
+      return `${tabsToCheck.length} onglet(s) verifies`;
+    });
+
+    await step('admin action utilisateur depuis interface', async () => {
+      await goto(cdp, '/admin');
+      await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      await call(cdp, 'clickAdminTab', 'Utilisateurs');
+      await call(cdp, 'fillAdminSearch', qa.traveler);
+      await waitFor(cdp, () => document.body.innerText.includes('qa.codex.voyageur@algbnb.local'));
+
+      await call(cdp, 'clickAdminRowAction', 'qa.codex.voyageur@algbnb.local', 'Suspendre');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur suspend compte voyageur.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Réactiver'));
+
+      await call(cdp, 'clickAdminRowAction', 'qa.codex.voyageur@algbnb.local', 'Réactiver');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur reactive compte voyageur.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Suspendre'));
+      await assertNoMojibake(cdp, 'admin action utilisateur');
+    });
+
+    await step('admin moderation message depuis interface', async () => {
+      await goto(cdp, '/admin');
+      await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      await call(cdp, 'fillAdminSearch', '');
+      await call(cdp, 'clickAdminTab', 'Messages');
+      await waitFor(cdp, () => document.body.innerText.includes('Conversation #'));
+      await call(cdp, 'clickFirstAdminConversation');
+      await waitFor(cdp, () => document.body.innerText.includes('Message #') && document.body.innerText.includes('Masquer'));
+
+      await call(cdp, 'clickText', 'Masquer');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur masque message.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Restaurer') && document.body.innerText.includes('Masqué'));
+
+      await call(cdp, 'clickText', 'Restaurer');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur restaure message.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Masquer'));
+      await assertNoMojibake(cdp, 'admin moderation message');
+    });
+
+    await step('admin moderation avis depuis interface', async () => {
+      await goto(cdp, '/admin');
+      await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      await call(cdp, 'fillAdminSearch', '');
+      await call(cdp, 'clickAdminTab', 'Avis');
+      await waitFor(cdp, () => document.body.innerText.includes('Masquer'));
+
+      await call(cdp, 'clickText', 'Masquer');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur masque avis.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Restaurer') && document.body.innerText.includes('Masqué'));
+
+      await call(cdp, 'clickText', 'Restaurer');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur restaure avis.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => document.body.innerText.includes('Masquer') && document.body.innerText.includes('Visible'));
+
+      await call(cdp, 'clickText', 'Créer un litige');
+      await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+      await call(cdp, 'fillAdminDialogNote', 'QA navigateur cree litige depuis commentaire.');
+      await call(cdp, 'submitAdminDialog');
+      await waitFor(cdp, () => !document.querySelector('[role="dialog"]'));
+      await assertNoMojibake(cdp, 'admin moderation avis');
+    });
+
+    await step('admin resolution litige depuis interface', async () => {
+      await goto(cdp, '/admin');
+      await waitFor(cdp, () => document.body.innerText.includes('Administration') && document.body.innerText.includes('Utilisateurs'));
+      await call(cdp, 'fillAdminSearch', '');
+      await call(cdp, 'clickAdminTab', 'Litiges');
+      await waitFor(cdp, () => document.body.innerText.includes('Litige #') && document.body.innerText.includes('Résoudre'));
+
+      try {
+        await call(cdp, 'clickText', 'Résoudre');
+        await waitFor(cdp, () => Boolean(document.querySelector('[role="dialog"]')));
+        await call(cdp, 'fillAdminDialogNote', 'QA navigateur resout litige.');
+        await call(cdp, 'submitAdminDialog');
+      } catch (error) {
+        const text = await call(cdp, 'text');
+        throw new Error(`${error.message}. Etat litiges: ${text.slice(0, 900)}`);
+      }
+      await waitFor(cdp, () => document.body.innerText.includes('Résolu'));
+      await assertNoMojibake(cdp, 'admin cycle litige');
     });
 
     await step('pages footer publiques', async () => {

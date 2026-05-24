@@ -69,13 +69,13 @@ const createListing = async ({ ownerId, payload, photos, equipements }) => {
           id_hote, titre, description, type_logement, adresse, ville, pays,
           latitude, longitude, nb_chambres, nb_lits, nb_salles_de_bain,
           capacite_accueil, prix_par_nuit, mode_reservation, politique_annulation,
-          regles_maison, est_actif, validation_statut
+          regles_maison, compte_ccp, est_actif, validation_statut
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12,
           $13, $14, $15, $16,
-          $17, $18, $19
+          $17, $18, $19, $20
         )
         RETURNING *
       `,
@@ -97,6 +97,7 @@ const createListing = async ({ ownerId, payload, photos, equipements }) => {
         payload.mode_reservation || 'sur_approbation',
         payload.politique_annulation || 'moderee',
         payload.regles_maison || null,
+        payload.compte_ccp ? payload.compte_ccp.replace(/[\s-]/g, '') : null,
         payload.est_actif === 'false' ? false : Boolean(payload.est_actif ?? true),
         payload.validation_statut || 'valide',
       ]
@@ -132,10 +133,11 @@ const updateListing = async ({ listingId, payload, photos, equipements, replaceP
             mode_reservation = $14,
             politique_annulation = $15,
             regles_maison = $16,
-            validation_statut = $17,
-            est_actif = $18,
+            compte_ccp = $17,
+            validation_statut = $18,
+            est_actif = $19,
             date_mise_a_jour = NOW()
-        WHERE id = $19
+        WHERE id = $20
       `,
       [
         payload.titre,
@@ -154,6 +156,7 @@ const updateListing = async ({ listingId, payload, photos, equipements, replaceP
         payload.mode_reservation,
         payload.politique_annulation,
         payload.regles_maison || null,
+        payload.compte_ccp ? payload.compte_ccp.replace(/[\s-]/g, '') : null,
         payload.validation_statut,
         Boolean(payload.est_actif),
         listingId,
@@ -182,8 +185,15 @@ const updateActiveStatus = async ({ listingId, active }) => {
   return result.rows[0] || null;
 };
 
+const availabilityConflictError = (message) => {
+  const error = new Error(message);
+  error.code = 'AVAILABILITY_CONFLICT';
+  return error;
+};
+
 const replaceAvailability = async ({ listingId, ranges }) => {
   await database.withTransaction(async (client) => {
+    await client.query('SELECT id FROM logement WHERE id = $1 FOR UPDATE', [listingId]);
     await client.query(
       "DELETE FROM disponibilite WHERE id_logement = $1 AND source_blocage IN ('manuel', 'maintenance')",
       [listingId]
@@ -191,6 +201,36 @@ const replaceAvailability = async ({ listingId, ranges }) => {
 
     for (const range of ranges) {
       if (!range.date_debut || !range.date_fin) continue;
+      const reservationConflict = await client.query(
+        `
+          SELECT 1
+          FROM reservation r
+          WHERE r.id_logement = $1
+            AND r.statut IN ('en_attente', 'confirmee', 'terminee')
+            AND NOT (r.date_depart <= $2 OR r.date_arrivee > $3)
+          LIMIT 1
+        `,
+        [listingId, range.date_debut, range.date_fin]
+      );
+      if (reservationConflict.rows.length > 0) {
+        throw availabilityConflictError('Cette plage chevauche une reservation existante.');
+      }
+
+      const blockConflict = await client.query(
+        `
+          SELECT 1
+          FROM disponibilite d
+          WHERE d.id_logement = $1
+            AND d.est_bloque = TRUE
+            AND NOT (d.date_fin < $2 OR d.date_debut > $3)
+          LIMIT 1
+        `,
+        [listingId, range.date_debut, range.date_fin]
+      );
+      if (blockConflict.rows.length > 0) {
+        throw availabilityConflictError('Cette plage chevauche deja un blocage ou un echange.');
+      }
+
       await client.query(
         `
           INSERT INTO disponibilite (id_logement, date_debut, date_fin, est_bloque, source_blocage, note_interne)
@@ -201,7 +241,7 @@ const replaceAvailability = async ({ listingId, ranges }) => {
           range.date_debut,
           range.date_fin,
           range.est_bloque !== false,
-          range.source_blocage || 'manuel',
+          'manuel',
           range.note_interne || null,
         ]
       );

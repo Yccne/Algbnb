@@ -5,7 +5,7 @@ const {
   validateCreateReservationPayload,
   validateReservationStatus,
 } = require('../validators/reservations.validator');
-const { badRequest, forbidden, notFound } = require('../utils/httpError');
+const { badRequest, conflict, forbidden, notFound } = require('../utils/httpError');
 
 const toDate = (value) => new Date(`${value}T00:00:00Z`);
 const calculateNights = (start, end) =>
@@ -29,6 +29,11 @@ const listByTraveler = ({ currentUser, travelerId }) => {
 const listHostMine = (hostId) => reservationsRepository.listByHost(hostId);
 
 const create = async ({ currentUser, payload }) => {
+  const currentRole = currentUser.role || currentUser.role_type;
+  if (currentRole !== 'voyageur') {
+    throw forbidden('Seuls les voyageurs peuvent reserver un logement.');
+  }
+
   const { logementId, startDate, endDate, guestCount } = validateCreateReservationPayload(payload);
   const [listing, voyageur] = await Promise.all([
     reservationsRepository.findAvailableListing(logementId),
@@ -51,43 +56,51 @@ const create = async ({ currentUser, payload }) => {
   const total = Number((subTotal + serviceFee).toFixed(2));
   const status = listing.mode_reservation === 'instantanee' ? 'confirmee' : 'en_attente';
 
-  const reservation = await reservationsRepository.createReservation({
-    reservation: {
-      travelerId: currentUser.id,
-      listingId: logementId,
-      startDate,
-      endDate,
-      guestCount,
-      pricePerNight,
-      subTotal,
-      serviceFee,
-      total,
-      status,
-      cancellationPolicy: listing.politique_annulation,
-      confirmationMode: listing.mode_reservation,
-    },
-    blockDates: status === 'confirmee',
-    notifications: (created) => [
-      {
-        userId: listing.id_hote,
-        type: 'reservation',
-        contenu:
-          status === 'confirmee'
-            ? `Nouvelle reservation confirmee pour ${listing.titre}.`
-            : `Nouvelle demande de reservation pour ${listing.titre}.`,
-        meta: { reservationId: created.id, logementId: listing.id },
+  let reservation;
+  try {
+    reservation = await reservationsRepository.createReservation({
+      reservation: {
+        travelerId: currentUser.id,
+        listingId: logementId,
+        startDate,
+        endDate,
+        guestCount,
+        pricePerNight,
+        subTotal,
+        serviceFee,
+        total,
+        status,
+        cancellationPolicy: listing.politique_annulation,
+        confirmationMode: listing.mode_reservation,
       },
-      {
-        userId: currentUser.id,
-        type: 'reservation',
-        contenu:
-          status === 'confirmee'
-            ? `Votre reservation pour ${listing.titre} est confirmee.`
-            : `Votre demande de reservation pour ${listing.titre} est en attente.`,
-        meta: { reservationId: created.id, logementId: listing.id },
-      },
-    ],
-  });
+      blockDates: status === 'confirmee',
+      notifications: (created) => [
+        {
+          userId: listing.id_hote,
+          type: 'reservation',
+          contenu:
+            status === 'confirmee'
+              ? `Nouvelle reservation confirmee pour ${listing.titre}.`
+              : `Nouvelle demande de reservation pour ${listing.titre}.`,
+          meta: { reservationId: created.id, logementId: listing.id },
+        },
+        {
+          userId: currentUser.id,
+          type: 'reservation',
+          contenu:
+            status === 'confirmee'
+              ? `Votre reservation pour ${listing.titre} est confirmee.`
+              : `Votre demande de reservation pour ${listing.titre} est en attente.`,
+          meta: { reservationId: created.id, logementId: listing.id },
+        },
+      ],
+    });
+  } catch (error) {
+    if (error.code === 'RESERVATION_CONFLICT' || error.code === '23P01') {
+      throw conflict(error.message || 'Ce logement n est plus disponible sur cette periode.');
+    }
+    throw error;
+  }
 
   const emailJobs = [];
   queueUserMail(
@@ -120,21 +133,35 @@ const cancel = async ({ currentUser, reservationId, reason }) => {
     throw forbidden('Acces refuse.');
   }
 
-  const status = isHost ? 'annulee_hote' : 'annulee_voyageur';
+  const status = currentUser.role === 'admin' ? 'annulee_admin' : isHost ? 'annulee_hote' : 'annulee_voyageur';
   const updated = await reservationsRepository.cancelReservation({ reservation, status, reason });
-  const recipientId = isHost ? reservation.id_voyageur : reservation.id_hote;
-  const recipientEmail = isHost ? reservation.voyageur_email : reservation.hote_email;
-  const contenu = isHost
-    ? `Votre reservation pour ${reservation.titre} a ete annulee par l hote.`
-    : `La reservation pour ${reservation.titre} a ete annulee par le voyageur.`;
+  const recipients =
+    currentUser.role === 'admin'
+      ? [
+          { id: reservation.id_voyageur, email: reservation.voyageur_email },
+          { id: reservation.id_hote, email: reservation.hote_email },
+        ]
+      : [{ id: isHost ? reservation.id_voyageur : reservation.id_hote, email: isHost ? reservation.voyageur_email : reservation.hote_email }];
+  const contenu =
+    currentUser.role === 'admin'
+      ? `La reservation pour ${reservation.titre} a ete annulee par l administration.`
+      : isHost
+        ? `Votre reservation pour ${reservation.titre} a ete annulee par l hote.`
+        : `La reservation pour ${reservation.titre} a ete annulee par le voyageur.`;
 
-  await notificationsService.insertNotification(null, recipientId, 'annulation', contenu, {
-    reservationId: reservation.id,
-    logementId: reservation.id_logement,
-  });
+  await Promise.all(
+    recipients.map((recipient) =>
+      notificationsService.insertNotification(null, recipient.id, 'annulation', contenu, {
+        reservationId: reservation.id,
+        logementId: reservation.id_logement,
+      })
+    )
+  );
 
   const emailJobs = [];
-  queueUserMail(emailJobs, { email: recipientEmail }, `Annulation de reservation - ${reservation.titre}`, contenu);
+  recipients.forEach((recipient) =>
+    queueUserMail(emailJobs, { email: recipient.email }, `Annulation de reservation - ${reservation.titre}`, contenu)
+  );
   await queueReservationEmails(emailJobs);
   return updated;
 };
@@ -154,16 +181,24 @@ const updateStatus = async ({ currentUser, reservationId, status: rawStatus }) =
         ? `Votre reservation pour ${reservation.titre} a ete refusee.`
         : `Votre reservation pour ${reservation.titre} est marquee comme terminee.`;
 
-  const updated = await reservationsRepository.updateStatus({
-    reservation,
-    status,
-    notification: {
-      userId: reservation.id_voyageur,
-      type: 'reservation',
-      contenu,
-      meta: { reservationId: reservation.id, logementId: reservation.logement_id },
-    },
-  });
+  let updated;
+  try {
+    updated = await reservationsRepository.updateStatus({
+      reservation,
+      status,
+      notification: {
+        userId: reservation.id_voyageur,
+        type: 'reservation',
+        contenu,
+        meta: { reservationId: reservation.id, logementId: reservation.logement_id },
+      },
+    });
+  } catch (error) {
+    if (error.code === 'RESERVATION_CONFLICT' || error.code === '23P01') {
+      throw conflict(error.message || 'Ce logement n est plus disponible sur cette periode.');
+    }
+    throw error;
+  }
 
   const emailJobs = [];
   queueUserMail(
@@ -180,11 +215,46 @@ const updateStatus = async ({ currentUser, reservationId, status: rawStatus }) =
   return updated;
 };
 
+const openDispute = async ({ currentUser, reservationId, message }) => {
+  const currentRole = currentUser.role || currentUser.role_type;
+  if (!['voyageur', 'hote'].includes(currentRole)) {
+    throw forbidden('Seuls le voyageur ou l hote de la reservation peuvent ouvrir un litige.');
+  }
+
+  const reservation = await reservationsRepository.findReservationForDispute(reservationId);
+  if (!reservation) throw notFound('Reservation introuvable.');
+
+  const isTraveler = String(reservation.id_voyageur) === String(currentUser.id);
+  const isHost = String(reservation.id_hote) === String(currentUser.id);
+  if (!isTraveler && !isHost) {
+    throw forbidden('Acces refuse.');
+  }
+
+  try {
+    const result = await reservationsRepository.openDisputeConversation({
+      reservation,
+      openerId: currentUser.id,
+      initialMessage: message,
+    });
+    return {
+      litige: result.dispute,
+      conversationId: result.conversation.id,
+      admin: result.admin,
+    };
+  } catch (error) {
+    if (error.code === 'SUPPORT_ADMIN_MISSING') {
+      throw notFound(error.message);
+    }
+    throw error;
+  }
+};
+
 module.exports = {
   cancel,
   create,
   listByTraveler,
   listHostMine,
   listMine,
+  openDispute,
   updateStatus,
 };

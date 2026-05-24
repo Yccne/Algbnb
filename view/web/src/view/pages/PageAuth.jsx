@@ -8,11 +8,10 @@ import { getFirebaseClientStatus } from '../../firebase';
 import { signInWithPopup } from 'firebase/auth';
 
 const socialProviderLabels = {
-  facebook: 'Facebook',
   google: 'Google',
 };
 
-const socialProviderKeys = ['google', 'facebook'];
+const socialProviderKeys = ['google'];
 
 const getAuthModeFromLocation = (location) => {
   if (location.pathname === '/inscription') {
@@ -38,8 +37,6 @@ export const PageAuth = () => {
   const [role, setRole] = useState('voyageur');
   const [error, setError] = useState('');
   const [providers, setProviders] = useState({
-    facebook: false,
-    facebook_backend_missing: [],
     firebase_admin_ready: false,
     firebase_project_id: null,
     firebase_project_ready: false,
@@ -77,9 +74,7 @@ export const PageAuth = () => {
         if (!active) return;
         setProviders({
           google: Boolean(response.google),
-          facebook: Boolean(response.facebook),
           google_backend_missing: Array.isArray(response.google_backend_missing) ? response.google_backend_missing : [],
-          facebook_backend_missing: Array.isArray(response.facebook_backend_missing) ? response.facebook_backend_missing : [],
           firebase_admin_ready: Boolean(response.firebase_admin_ready),
           firebase_project_id: response.firebase_project_id || null,
           firebase_project_ready: Boolean(response.firebase_project_ready),
@@ -90,9 +85,7 @@ export const PageAuth = () => {
         if (!active) return;
         setProviders({
           google: false,
-          facebook: false,
           google_backend_missing: [],
-          facebook_backend_missing: [],
           firebase_admin_ready: false,
           firebase_project_id: null,
           firebase_project_ready: false,
@@ -254,7 +247,7 @@ export const PageAuth = () => {
                 lineHeight: 1.1,
               }}
             >
-              Reinitialiser le mot de passe
+              Réinitialiser le mot de passe
             </h1>
             <p
               style={{
@@ -403,7 +396,7 @@ export const PageAuth = () => {
               marginBottom: 'var(--spacing-8)',
             }}
           >
-            Accede a ton espace voyageur ou hote.
+            Accède à ton espace voyageur ou hôte.
           </p>
 
           <div
@@ -642,32 +635,6 @@ export const PageAuth = () => {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
               Continuer avec Google {isSocialReady('google') ? '' : '(indisponible)'}
-            </button>
-            <button
-              onClick={() => handleSocialLogin('facebook')}
-              type="button"
-              className="btn-outline"
-              disabled={!isSocialReady('facebook')}
-              style={{ width: '100%', opacity: isSocialReady('facebook') ? 1 : 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: '#1877F2',
-                  borderRadius: '50%',
-                  color: 'white',
-                  display: 'inline-flex',
-                  fontWeight: 800,
-                  height: '18px',
-                  justifyContent: 'center',
-                  lineHeight: 1,
-                  width: '18px',
-                }}
-              >
-                f
-              </span>
-              Continuer avec Facebook {isSocialReady('facebook') ? '' : '(indisponible)'}
             </button>
           </div>
 

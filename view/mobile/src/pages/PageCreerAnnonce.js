@@ -27,6 +27,7 @@ export const PageCreerAnnonce = () => {
     mode_reservation: 'sur_approbation',
     politique_annulation: 'moderee',
     regles_maison: '',
+    compte_ccp: '',
     photo_urls_text: '',
     equipements: [],
   });
@@ -103,6 +104,13 @@ export const PageCreerAnnonce = () => {
         <TextInput placeholder="Lits" keyboardType="numeric" style={styles.input} value={form.nb_lits} onChangeText={(value) => updateField('nb_lits', value)} />
         <TextInput placeholder="Salles de bain" keyboardType="numeric" style={styles.input} value={form.nb_salles_de_bain} onChangeText={(value) => updateField('nb_salles_de_bain', value)} />
         <TextInput placeholder="Prix / nuit" keyboardType="numeric" style={styles.input} value={form.prix_par_nuit} onChangeText={(value) => updateField('prix_par_nuit', value)} />
+        <TextInput
+          placeholder="Numero CCP hote"
+          keyboardType="numeric"
+          style={styles.input}
+          value={form.compte_ccp}
+          onChangeText={(value) => updateField('compte_ccp', value)}
+        />
 
         <Text style={[styles.sectionTitle, { marginTop: theme.spacing.l }]}>Equipements</Text>
         <View style={styles.equipRow}>

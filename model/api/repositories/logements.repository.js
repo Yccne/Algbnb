@@ -26,6 +26,32 @@ const buildQueryParts = (ctx) => {
   };
 
   let rankSql = '0';
+  let geoDistanceSql = 'NULL';
+  if (ctx.geoBounds) {
+    const centerLatToken = push(ctx.geoBounds.lat);
+    const centerLngToken = push(ctx.geoBounds.lng);
+    const minLatToken = push(ctx.geoBounds.minLat);
+    const maxLatToken = push(ctx.geoBounds.maxLat);
+    const minLngToken = push(ctx.geoBounds.minLng);
+    const maxLngToken = push(ctx.geoBounds.maxLng);
+
+    geoDistanceSql = `
+      SQRT(
+        POWER((l.latitude::numeric - ${centerLatToken}), 2) +
+        POWER((l.longitude::numeric - ${centerLngToken}) * COS(RADIANS(${centerLatToken})), 2)
+      )
+    `;
+
+    conditions.push(`
+      l.latitude IS NOT NULL
+      AND l.longitude IS NOT NULL
+      AND l.latitude::numeric BETWEEN ${minLatToken} AND ${maxLatToken}
+      AND l.longitude::numeric BETWEEN ${minLngToken} AND ${maxLngToken}
+      AND ${centerLatToken} = ${centerLatToken}
+      AND ${centerLngToken} = ${centerLngToken}
+    `);
+  }
+
   if (ctx.search) {
     const tsToken = push(ctx.search);
     const likeToken = push(`%${ctx.search}%`);
@@ -34,21 +60,38 @@ const buildQueryParts = (ctx) => {
     const normalizedVille = normalizedSql('l.ville');
     const normalizedAdresse = normalizedSql('l.adresse');
 
-    conditions.push(`(
-      ${searchVectorSql} @@ plainto_tsquery('simple', ${tsToken})
-      OR ${normalizedTitre} LIKE ${likeToken}
-      OR ${normalizedVille} LIKE ${likeToken}
-      OR ${normalizedAdresse} LIKE ${likeToken}
-    )`);
+    if (ctx.geoBounds) {
+      conditions.push(`${tsToken} = ${tsToken} AND ${likeToken} = ${likeToken}`);
+    } else {
+      conditions.push(`(
+        ${searchVectorSql} @@ plainto_tsquery('simple', ${tsToken})
+        OR l.titre::text % ${tsToken}
+        OR l.ville::text % ${tsToken}
+        OR l.adresse::text % ${tsToken}
+        OR ${normalizedTitre} LIKE ${likeToken}
+        OR ${normalizedVille} LIKE ${likeToken}
+        OR ${normalizedAdresse} LIKE ${likeToken}
+      )`);
+    }
 
     rankSql = `
       (
         COALESCE(ts_rank_cd(${searchVectorSql}, plainto_tsquery('simple', ${tsToken})), 0) * 100 +
+        GREATEST(
+          similarity(COALESCE(l.titre, '')::text, ${tsToken}) * 35,
+          similarity(COALESCE(l.ville, '')::text, ${tsToken}) * 45,
+          similarity(COALESCE(l.adresse, '')::text, ${tsToken}) * 25
+        ) +
         CASE WHEN ${normalizedVille} = ${exactToken} THEN 40 ELSE 0 END +
         CASE WHEN ${normalizedTitre} LIKE ${likeToken} THEN 25 ELSE 0 END +
         CASE WHEN ${normalizedAdresse} LIKE ${likeToken} THEN 15 ELSE 0 END
       )
     `;
+  }
+
+  if (ctx.geoBounds) {
+    const distanceRankSql = `GREATEST(0, 35 - (${geoDistanceSql} * 260))`;
+    rankSql = rankSql === '0' ? distanceRankSql : `(${rankSql} + ${distanceRankSql})`;
   }
 
   if (ctx.type) conditions.push(`LOWER(l.type_logement) = LOWER(${push(ctx.type)})`);
@@ -110,8 +153,14 @@ const buildQueryParts = (ctx) => {
   if (ctx.sort === 'price_desc') orderBy = 'l.prix_par_nuit DESC, l.date_creation DESC';
   if (ctx.sort === 'rating_desc') orderBy = 'note_moyenne DESC, l.date_creation DESC';
   if (ctx.sort === 'recent') orderBy = 'l.date_creation DESC';
+  if (!ctx.sort && ctx.geoBounds) {
+    orderBy = 'search_rank DESC, geo_distance ASC, note_moyenne DESC, l.date_creation DESC';
+  }
   if (!ctx.sort && ctx.search) {
     orderBy = 'search_rank DESC, note_moyenne DESC, l.date_creation DESC';
+  }
+  if (!ctx.sort && ctx.search && ctx.geoBounds) {
+    orderBy = 'search_rank DESC, geo_distance ASC, note_moyenne DESC, l.date_creation DESC';
   }
 
   const fromAndWhere = `
@@ -134,6 +183,7 @@ const buildQueryParts = (ctx) => {
       COALESCE(ARRAY_REMOVE(ARRAY_AGG(DISTINCT le.nom_equipement ORDER BY le.nom_equipement), NULL), '{}') AS equipements,
       COALESCE(ROUND(AVG(a.note_logement)::numeric, 2), 0) AS note_moyenne,
       COUNT(DISTINCT a.id) AS nb_avis,
+      ${geoDistanceSql} AS geo_distance,
       ${rankSql} AS search_rank
     ${fromAndWhere}
     GROUP BY l.id, u.id
@@ -179,6 +229,47 @@ const listPaginated = async (ctx) => {
 const listMap = async (ctx) => {
   const rows = await list(ctx);
   return rows.filter((item) => item.latitude !== null && item.longitude !== null);
+};
+
+const findLocationSuggestions = async (searchText, limit = 5) => {
+  const normalizedToken = String(searchText || '').trim().toLowerCase();
+  if (!normalizedToken || normalizedToken.length < 2) return [];
+
+  const normalizedVille = normalizedSql('l.ville');
+  const result = await database.query(
+    `
+      SELECT
+        l.ville,
+        COUNT(*)::int AS nb_logements,
+        AVG(l.latitude::numeric)::float AS lat,
+        AVG(l.longitude::numeric)::float AS lon,
+        MIN(l.latitude::numeric)::float AS min_lat,
+        MAX(l.latitude::numeric)::float AS max_lat,
+        MIN(l.longitude::numeric)::float AS min_lng,
+        MAX(l.longitude::numeric)::float AS max_lng,
+        MAX(similarity(${normalizedVille}, $1))::float AS score
+      FROM logement l
+      WHERE l.est_supprime = FALSE
+        AND l.validation_statut = 'valide'
+        AND l.est_actif = TRUE
+        AND l.latitude IS NOT NULL
+        AND l.longitude IS NOT NULL
+        AND (
+          ${normalizedVille} LIKE $2
+          OR ${normalizedVille} % $1
+          OR similarity(${normalizedVille}, $1) >= 0.25
+        )
+      GROUP BY l.ville
+      ORDER BY
+        CASE WHEN ${normalizedVille} = $1 THEN 1 ELSE 0 END DESC,
+        score DESC,
+        nb_logements DESC,
+        l.ville ASC
+      LIMIT $3
+    `,
+    [normalizedToken, `%${normalizedToken}%`, limit]
+  );
+  return result.rows;
 };
 
 const findAvailability = async (listingId) => {
@@ -242,6 +333,7 @@ const findBlocksForDetail = async (listingId) => {
 module.exports = {
   findAvailability,
   findBlocksForDetail,
+  findLocationSuggestions,
   findPublicDetail,
   findReviewsForDetail,
   list,

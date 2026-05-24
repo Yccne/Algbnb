@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { FacebookAuthProvider, getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
@@ -39,11 +39,11 @@ let firebaseClient = null;
 let firebaseInitMessage = '';
 
 const missingConfigMessage = () =>
-  'Connexion Google/Facebook temporairement indisponible.';
+  'Connexion Google temporairement indisponible.';
 
 const normalizeFirebaseError = (error) => {
   if (error?.code === 'auth/invalid-api-key') {
-    return 'Connexion Google/Facebook temporairement indisponible. Verifie la cle Firebase locale.';
+    return 'Connexion Google temporairement indisponible. Verifie la cle Firebase locale.';
   }
   if (error?.code === 'auth/unauthorized-domain') {
     return 'Domaine local non autorise dans Firebase. Ajoute 127.0.0.1 et localhost dans Firebase Authentication.';
@@ -61,7 +61,6 @@ export const getFirebaseClientStatus = () => {
       ready: false,
       auth: null,
       googleProvider: null,
-      facebookProvider: null,
       providers: {},
       message: missingConfigMessage(),
       missingKeys: missingFirebaseConfigKeys,
@@ -84,7 +83,6 @@ export const getFirebaseClientStatus = () => {
       ready: false,
       auth: null,
       googleProvider: null,
-      facebookProvider: null,
       providers: {},
       message: firebaseInitMessage,
       missingKeys: [],
@@ -97,17 +95,13 @@ export const getFirebaseClientStatus = () => {
     const auth = getAuth(app);
     const googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: 'select_account' });
-    const facebookProvider = new FacebookAuthProvider();
-    facebookProvider.addScope('email');
 
     firebaseClient = {
       app,
       auth,
       googleProvider,
-      facebookProvider,
       providers: {
         google: googleProvider,
-        facebook: facebookProvider,
       },
     };
 
@@ -125,7 +119,6 @@ export const getFirebaseClientStatus = () => {
       ready: false,
       auth: null,
       googleProvider: null,
-      facebookProvider: null,
       providers: {},
       message: firebaseInitMessage,
       missingKeys: [],

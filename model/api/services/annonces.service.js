@@ -1,11 +1,55 @@
 const annoncesRepository = require('../repositories/annonces.repository');
-const { parseEquipements, parsePhotoUrls, validateAnnoncePayload } = require('../validators/annonces.validator');
-const { badRequest, notFound } = require('../utils/httpError');
+const {
+  MIN_LISTING_PHOTOS,
+  MIN_LISTING_PHOTOS_MESSAGE,
+  parseEquipements,
+  parsePhotoUrls,
+  validateAnnoncePayload,
+} = require('../validators/annonces.validator');
+const { badRequest, conflict, notFound } = require('../utils/httpError');
 
 const mergePhotos = (files = [], photoUrls = []) => [
   ...files.map((file) => `/uploads/logements/${file.filename}`),
   ...photoUrls,
 ];
+
+const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+
+const rangesOverlapInclusive = (left, right) =>
+  !(left.date_fin < right.date_debut || left.date_debut > right.date_fin);
+
+const normalizeAvailabilityRanges = (disponibilites) => {
+  const ranges = Array.isArray(disponibilites) ? disponibilites : [];
+  const normalized = ranges
+    .filter((range) => range && (range.date_debut || range.date_fin))
+    .map((range) => ({
+      date_debut: String(range.date_debut || '').slice(0, 10),
+      date_fin: String(range.date_fin || '').slice(0, 10),
+      est_bloque: range.est_bloque !== false,
+      source_blocage: 'manuel',
+      note_interne: String(range.note_interne || '').trim().slice(0, 300),
+    }));
+
+  for (const range of normalized) {
+    if (!isIsoDate(range.date_debut) || !isIsoDate(range.date_fin)) {
+      throw badRequest('Chaque blocage doit avoir une date de debut et une date de fin valides.');
+    }
+    if (range.date_fin < range.date_debut) {
+      throw badRequest('La date de fin du blocage doit etre egale ou posterieure a la date de debut.');
+    }
+  }
+
+  const sorted = [...normalized].sort((a, b) => a.date_debut.localeCompare(b.date_debut));
+  for (let index = 0; index < sorted.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < sorted.length; nextIndex += 1) {
+      if (rangesOverlapInclusive(sorted[index], sorted[nextIndex])) {
+        throw badRequest('Deux blocages ne peuvent pas se chevaucher.');
+      }
+    }
+  }
+
+  return normalized;
+};
 
 const requireOwner = async ({ listingId, userId }) => {
   const listing = await annoncesRepository.findOwnedListing({ listingId, userId });
@@ -18,6 +62,12 @@ const requireOwner = async ({ listingId, userId }) => {
 const create = async ({ userId, payload, files = [] }) => {
   const equipements = Array.isArray(payload.equipements) ? payload.equipements : parseEquipements(payload.equipements);
   const photoUrls = Array.isArray(payload.photo_urls) ? payload.photo_urls : parsePhotoUrls(payload.photo_urls);
+  if (photoUrls.length > 0) {
+    throw badRequest('Ajoute les photos depuis ton appareil. Les URLs d images ne sont plus acceptees.');
+  }
+  if (!files || files.length < MIN_LISTING_PHOTOS) {
+    throw badRequest(MIN_LISTING_PHOTOS_MESSAGE);
+  }
   const photos = mergePhotos(files, photoUrls);
   const logement = await annoncesRepository.createListing({
     ownerId: userId,
@@ -40,6 +90,8 @@ const detailMine = async ({ listingId, userId }) => {
 
 const update = async ({ listingId, userId, payload: inputPayload, files = [] }) => {
   const listing = await requireOwner({ listingId, userId });
+  const currentDetail = await annoncesRepository.findDetail(listingId);
+  const existingPhotos = Array.isArray(currentDetail?.photos) ? currentDetail.photos : [];
   const payload = {
     titre: inputPayload.titre ?? listing.titre,
     description: inputPayload.description ?? listing.description,
@@ -71,12 +123,17 @@ const update = async ({ listingId, userId, payload: inputPayload, files = [] }) 
 
   const uploadedPhotos = files.map((file) => `/uploads/logements/${file.filename}`);
   const photos = [...uploadedPhotos, ...validation.photoUrls];
+  const effectivePhotoCount = files.length > 0 ? photos.length : existingPhotos.length;
+  if (effectivePhotoCount < MIN_LISTING_PHOTOS) {
+    throw badRequest(MIN_LISTING_PHOTOS_MESSAGE);
+  }
+
   const logement = await annoncesRepository.updateListing({
     listingId,
     payload,
     photos,
     equipements: validation.equipements,
-    replacePhotos: files.length > 0 || inputPayload.photo_urls !== undefined,
+    replacePhotos: files.length > 0,
     replaceEquipements: inputPayload.equipements !== undefined,
   });
 
@@ -91,8 +148,15 @@ const updateStatus = async ({ listingId, userId, active }) => {
 
 const replaceAvailability = async ({ listingId, userId, disponibilites }) => {
   await requireOwner({ listingId, userId });
-  const ranges = Array.isArray(disponibilites) ? disponibilites : [];
-  return annoncesRepository.replaceAvailability({ listingId, ranges });
+  const ranges = normalizeAvailabilityRanges(disponibilites);
+  try {
+    return await annoncesRepository.replaceAvailability({ listingId, ranges });
+  } catch (error) {
+    if (error.code === 'AVAILABILITY_CONFLICT') {
+      throw conflict(error.message);
+    }
+    throw error;
+  }
 };
 
 const remove = async ({ listingId, userId }) => {

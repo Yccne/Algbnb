@@ -87,7 +87,7 @@ Université Abderrahmane Mira — Béjaïa | 2025/2026          Page 3 / 9
 Hôtes : H ; Voyageur : V ; Admin : A
 1. Gestion des utilisateurs
 1.1. Inscription / Connexion
- H , V : S'inscrire avec email, téléphone ou réseaux sociaux (Google, Facebook, ).
+ H , V : S'inscrire avec email, téléphone ou réseaux sociaux (Google).
  H , V : Récupération de mot de passe (reset).
 1.2. Profils utilisateurs
  H , V : Visualiser et modifier les informations personnelles.

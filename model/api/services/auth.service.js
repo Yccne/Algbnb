@@ -18,12 +18,10 @@ const createAuthResponse = (user) => ({
 });
 
 const providerLabels = {
-  facebook: 'Facebook',
   google: 'Google',
 };
 
 const firebaseProviderIds = {
-  facebook: 'facebook.com',
   google: 'google.com',
 };
 
@@ -141,8 +139,6 @@ const loginWithGoogle = (payload) => {
   return loginWithFirebaseProvider('google', payload);
 };
 
-const loginWithFacebook = (payload) => loginWithFirebaseProvider('facebook', payload);
-
 const forgotPassword = async (payload, clientBaseUrl) => {
   const email = validateForgotPasswordPayload(payload);
   const user = await authRepository.findUserByEmail(email);
@@ -180,12 +176,20 @@ const resetPassword = async (payload) => {
   return { message: 'Mot de passe mis a jour.' };
 };
 
-const getMe = async (userId) => {
+const getMe = async (currentUser) => {
+  const userId = currentUser.id || currentUser;
   const user = await authRepository.findUserById(userId);
   if (!user) {
     throw notFound('Utilisateur introuvable.');
   }
-  return { user: sanitizeUser(user) };
+  const impersonation = currentUser.impersonatedByAdminId
+    ? {
+        active: true,
+        adminId: currentUser.impersonatedByAdminId,
+        originalAdminId: currentUser.originalAdminId || currentUser.impersonatedByAdminId,
+      }
+    : null;
+  return { user: sanitizeUser(user, { impersonation }) };
 };
 
 module.exports = {
@@ -193,7 +197,6 @@ module.exports = {
   getMe,
   getProviders: getFirebaseProviderStatus,
   login,
-  loginWithFacebook,
   loginWithFirebaseProvider,
   loginWithGoogle,
   register,
